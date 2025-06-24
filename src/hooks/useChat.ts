@@ -35,10 +35,12 @@ export const useChat = (user: User | null) => {
     prompt: string | null;
     timestamp: number;
     isLoading: boolean;
+    hasError: boolean;
   }>({
     prompt: null,
     timestamp: 0,
     isLoading: false,
+    hasError: false,
   });
 
   // 현재 세션의 AbortController만 관리
@@ -117,7 +119,7 @@ export const useChat = (user: User | null) => {
     }
   }, [user, loadUserSessions]);
 
-  // 앱 초기화 시 시스템 프롬프트 미리 가져오기
+  // 앱 초기화 시 시스템 프롬프트 미리 가져오기 (향상된 에러 처리)
   useEffect(() => {
     const preloadSystemPrompt = async () => {
       if (systemPromptCache.isLoading || systemPromptCache.prompt) {
@@ -129,6 +131,7 @@ export const useChat = (user: User | null) => {
       setSystemPromptCache(prev => ({
         ...prev,
         isLoading: true,
+        hasError: false,
       }));
 
       try {
@@ -137,6 +140,7 @@ export const useChat = (user: User | null) => {
           prompt,
           timestamp: Date.now(),
           isLoading: false,
+          hasError: false,
         });
         console.log('✅ 시스템 프롬프트 미리 로딩 완료:', {
           length: prompt.length,
@@ -147,7 +151,10 @@ export const useChat = (user: User | null) => {
         setSystemPromptCache(prev => ({
           ...prev,
           isLoading: false,
+          hasError: true,
         }));
+        // 에러가 발생해도 앱이 계속 작동하도록 함
+        console.log('⚠️ 기본 시스템 프롬프트로 계속 진행합니다.');
       }
     };
 
@@ -274,7 +281,7 @@ export const useChat = (user: User | null) => {
     );
   };
 
-  // 캐시된 시스템 프롬프트 가져오기 함수
+  // 캐시된 시스템 프롬프트 가져오기 함수 (향상된 에러 처리)
   const getCachedSystemPrompt = useCallback(async (): Promise<string> => {
     const CACHE_TTL = 5 * 60 * 1000; // 5분
     const isCacheValid = systemPromptCache.prompt && 
@@ -295,15 +302,25 @@ export const useChat = (user: User | null) => {
         prompt,
         timestamp: Date.now(),
         isLoading: false,
+        hasError: false,
       });
       return prompt;
     } catch (error) {
       console.error('시스템 프롬프트 가져오기 실패:', error);
+      setSystemPromptCache(prev => ({
+        ...prev,
+        hasError: true,
+        isLoading: false,
+      }));
+      
       if (systemPromptCache.prompt) {
         console.log('⚠️ 만료된 캐시 사용 (fallback)');
         return systemPromptCache.prompt;
       }
-      throw error;
+      
+      // fetchSystemPrompt는 이제 항상 기본 프롬프트를 반환하므로 다시 시도
+      console.log('🔄 기본 시스템 프롬프트로 재시도');
+      return await fetchSystemPrompt();
     }
   }, [systemPromptCache]);
 
