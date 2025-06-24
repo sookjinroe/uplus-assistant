@@ -17,14 +17,20 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const validateEmail = (email: string): boolean => {
+    // More robust email validation regex
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    return emailRegex.test(email);
+  };
+
   const validateForm = () => {
     if (!email.trim()) {
       setError('이메일을 입력해주세요.');
       return false;
     }
     
-    if (!email.includes('@')) {
-      setError('올바른 이메일 형식을 입력해주세요.');
+    if (!validateEmail(email.trim())) {
+      setError('올바른 이메일 형식을 입력해주세요. (예: user@example.com)');
       return false;
     }
     
@@ -92,8 +98,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         errorMessage = '이미 가입된 이메일입니다.';
       } else if (error.message?.includes('Password should be at least 6 characters')) {
         errorMessage = '비밀번호는 최소 6자 이상이어야 합니다.';
-      } else if (error.message?.includes('Unable to validate email address')) {
-        errorMessage = '올바른 이메일 주소를 입력해주세요.';
+      } else if (error.message?.includes('Unable to validate email address') || error.message?.includes('email_address_invalid')) {
+        errorMessage = '올바른 이메일 주소를 입력해주세요. 유효한 이메일 형식을 사용하세요.';
       }
       
       setError(errorMessage);
@@ -140,7 +146,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                  placeholder="이메일을 입력하세요"
+                  placeholder="이메일을 입력하세요 (예: user@example.com)"
                   disabled={loading}
                 />
               </div>
