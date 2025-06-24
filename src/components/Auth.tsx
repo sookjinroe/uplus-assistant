@@ -84,7 +84,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
       // Supabase 에러 메시지를 한국어로 변환
       let errorMessage = '오류가 발생했습니다. 다시 시도해주세요.';
       
-      if (error.message?.includes('Invalid login credentials')) {
+      if (error.message?.includes('Email not confirmed') || error.message?.includes('email_not_confirmed')) {
+        errorMessage = '이메일이 확인되지 않았습니다. 이메일을 확인해주세요.';
+      } else if (error.message?.includes('Invalid login credentials') || error.message?.includes('invalid_credentials')) {
         errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.';
       } else if (error.message?.includes('User already registered')) {
         errorMessage = '이미 가입된 이메일입니다.';
