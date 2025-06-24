@@ -34,12 +34,13 @@ async function buildSystemPromptDirect(): Promise<string> {
 
     console.log('시스템 프롬프트 캐시 미스 - 데이터베이스에서 새로 가져오는 중...');
 
-    // Supabase 클라이언트 초기화
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    // Supabase 클라이언트 초기화 - 자동으로 사용 가능한 환경 변수 사용
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'http://localhost:54321';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY');
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('Supabase 환경 변수가 설정되지 않았습니다.');
+      console.log('Available env vars:', Object.keys(Deno.env.toObject()));
       throw new Error('Supabase configuration missing');
     }
 
@@ -64,12 +65,12 @@ async function buildSystemPromptDirect(): Promise<string> {
 
     if (mainPromptResult.error) {
       console.error('메인 프롬프트 가져오기 실패:', mainPromptResult.error);
-      throw new Error('Failed to fetch main prompt');
+      throw new Error(`Failed to fetch main prompt: ${mainPromptResult.error.message}`);
     }
 
     if (knowledgeBaseResult.error) {
       console.error('지식 기반 가져오기 실패:', knowledgeBaseResult.error);
-      throw new Error('Failed to fetch knowledge base');
+      throw new Error(`Failed to fetch knowledge base: ${knowledgeBaseResult.error.message}`);
     }
 
     // 시스템 프롬프트 구성
