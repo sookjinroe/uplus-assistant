@@ -30,6 +30,19 @@ export const useChat = (user: AuthUser | null) => {
     error: null,
   });
 
+  // 시스템 프롬프트 캐시 상태
+  const [systemPromptCache, setSystemPromptCache] = useState<{
+    prompt: string | null;
+    timestamp: number;
+    isLoading: boolean;
+    error: string | null;
+  }>({
+    prompt: null,
+    timestamp: 0,
+    isLoading: false,
+    error: null,
+  });
+
   // 현재 세션의 AbortController만 관리
   const currentAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -105,6 +118,52 @@ export const useChat = (user: AuthUser | null) => {
       });
     }
   }, [user, loadUserSessions]);
+
+  // 앱 초기화 시 시스템 프롬프트 미리 가져오기 (에러 처리 개선)
+  useEffect(() => {
+    const preloadSystemPrompt = async () => {
+      // 이미 로딩 중이거나 프롬프트가 있으면 스킵
+      if (systemPromptCache.isLoading || systemPromptCache.prompt) {
+        return;
+      }
+
+      console.log('🚀 앱 초기화: 시스템 프롬프트 미리 로딩 시작');
+      
+      setSystemPromptCache(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+      }));
+
+      try {
+        const prompt = await fetchSystemPrompt();
+        setSystemPromptCache({
+          prompt,
+          timestamp: Date.now(),
+          isLoading: false,
+          error: null,
+        });
+        console.log('✅ 시스템 프롬프트 미리 로딩 완료:', {
+          length: prompt.length,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('❌ 시스템 프롬프트 미리 로딩 실패:', error);
+        // 에러가 발생해도 앱이 계속 작동하도록 함
+        setSystemPromptCache(prev => ({
+          ...prev,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }));
+      }
+    };
+
+    // 사용자가 로그인한 경우에만 시스템 프롬프트 로딩
+    if (user) {
+      const timeoutId = setTimeout(preloadSystemPrompt, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user, systemPromptCache.isLoading, systemPromptCache.prompt]);
 
   // Create a new chat session
   const createNewSession = useCallback(async () => {
@@ -225,6 +284,46 @@ export const useChat = (user: AuthUser | null) => {
     );
   };
 
+  // 캐시된 시스템 프롬프트 가져오기 함수 (fallback 개선)
+  const getCachedSystemPrompt = useCallback(async (): Promise<string> => {
+    const CACHE_TTL = 5 * 60 * 1000; // 5분
+    const isCacheValid = systemPromptCache.prompt && 
+      (Date.now() - systemPromptCache.timestamp) < CACHE_TTL;
+
+    if (isCacheValid) {
+      console.log('💾 캐시된 시스템 프롬프트 사용:', {
+        cacheAge: Math.round((Date.now() - systemPromptCache.timestamp) / 1000),
+        promptLength: systemPromptCache.prompt!.length
+      });
+      return systemPromptCache.prompt!;
+    }
+
+    console.log('🔄 시스템 프롬프트 새로 가져오기 (캐시 만료 또는 없음)');
+    try {
+      const prompt = await fetchSystemPrompt();
+      setSystemPromptCache({
+        prompt,
+        timestamp: Date.now(),
+        isLoading: false,
+        error: null,
+      });
+      return prompt;
+    } catch (error) {
+      console.error('시스템 프롬프트 가져오기 실패:', error);
+      
+      // 캐시된 프롬프트가 있다면 만료되었어도 사용
+      if (systemPromptCache.prompt) {
+        console.log('⚠️ 만료된 캐시 사용 (fallback)');
+        return systemPromptCache.prompt;
+      }
+      
+      // 기본 프롬프트 반환
+      const fallbackPrompt = "You are Claude, a helpful AI assistant created by Anthropic. Please respond naturally and helpfully to the user's questions.";
+      console.log('🔧 기본 프롬프트 사용 (fallback)');
+      return fallbackPrompt;
+    }
+  }, [systemPromptCache]);
+
   // Send a message with streaming
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || !user) return;
@@ -325,7 +424,7 @@ export const useChat = (user: AuthUser | null) => {
 
         if (userMsgError) throw userMsgError;
 
-        const systemPrompt = await fetchSystemPrompt();
+        const systemPrompt = await getCachedSystemPrompt();
         const systemPromptContent = `**현재 시스템 프롬프트:**\n\n\`\`\`\n${systemPrompt}\n\`\`\``;
         
         // 어시스턴트 메시지 저장
@@ -564,7 +663,7 @@ export const useChat = (user: AuthUser | null) => {
         ),
       }));
     }
-  }, [state.currentSessionId, state.sessions, createNewSession, user]);
+  }, [state.currentSessionId, state.sessions, createNewSession, getCachedSystemPrompt, user]);
 
   // Switch to a different session
   const switchSession = useCallback((sessionId: string) => {
