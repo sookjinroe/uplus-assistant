@@ -192,7 +192,7 @@ export const generateStreamingResponse = async (
   }
 };
 
-// 시스템 프롬프트를 가져오는 함수
+// 시스템 프롬프트를 가져오는 함수 (에러 처리 개선)
 export const fetchSystemPrompt = async (): Promise<string> => {
   try {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-system-prompt`;
@@ -222,6 +222,19 @@ export const fetchSystemPrompt = async (): Promise<string> => {
     return data.systemPrompt;
   } catch (error) {
     console.error('System Prompt Fetch Error:', error);
+    
+    // 네트워크 오류나 서버 오류 시 기본 프롬프트 반환
+    if (error instanceof Error && (
+      error.message.includes('Failed to fetch') ||
+      error.message.includes('NetworkError') ||
+      error.message.includes('500') ||
+      error.message.includes('502') ||
+      error.message.includes('503')
+    )) {
+      console.log('🔧 네트워크 오류로 인해 기본 프롬프트 사용');
+      return "You are Claude, a helpful AI assistant created by Anthropic. Please respond naturally and helpfully to the user's questions.";
+    }
+    
     if (error instanceof Error) {
       throw error;
     }
