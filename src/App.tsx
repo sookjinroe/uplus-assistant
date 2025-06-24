@@ -4,7 +4,7 @@ import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User } from 'lucide-react';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -95,6 +95,13 @@ function App() {
     }
   };
 
+  // 관리자 기능 접근 함수
+  const handleAdminAccess = () => {
+    // TODO: 관리자 페이지로 이동하는 로직 구현
+    console.log('Admin access requested');
+    alert('관리자 기능은 곧 구현될 예정입니다.');
+  };
+
   // 현재 세션이 sessions 배열에 있는지 확인 (빈 세션이 아닌지)
   const isCurrentSessionInList = currentSession && sessions.some(s => s.id === currentSession.id);
 
@@ -131,7 +138,24 @@ function App() {
                   <p className="text-sm font-medium text-slate-800 truncate">
                     {user.email}
                   </p>
+                  {user.role === 'admin' && (
+                    <p className="text-xs text-primary font-medium">관리자</p>
+                  )}
                 </div>
+                
+                {/* 관리자 전용 메뉴 */}
+                {user.role === 'admin' && (
+                  <DropdownItem
+                    onClick={handleAdminAccess}
+                    className="text-primary hover:bg-primary/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings size={14} />
+                      관리자 설정
+                    </div>
+                  </DropdownItem>
+                )}
+                
                 <DropdownItem
                   onClick={handleSignOut}
                   className="text-red-600 hover:bg-red-50"

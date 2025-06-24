@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
 import { Message, ChatSession, ChatState, DbChatSession, DbChatMessage } from '../types/chat';
+import { AuthUser } from '../types/auth';
 import { generateStreamingResponse, fetchSystemPrompt } from '../utils/api';
 import { supabase } from '../utils/supabase';
 
@@ -21,7 +21,7 @@ const activeRequests = new Map<string, {
   messageId: string;
 }>();
 
-export const useChat = (user: User | null) => {
+export const useChat = (user: AuthUser | null) => {
   const [state, setState] = useState<ChatState>({
     sessions: [],
     currentSessionId: null,
