@@ -41,6 +41,15 @@ export const useChat = (user: User | null) => {
     isLoading: false,
   });
 
+  // Playground 오버라이드 상태
+  const [playgroundOverrides, setPlaygroundOverrides] = useState<{
+    mainPrompt: string | null;
+    knowledgeBaseItems: Array<{ name: string; content: string }> | null;
+  }>({
+    mainPrompt: null,
+    knowledgeBaseItems: null,
+  });
+
   // 현재 세션의 AbortController만 관리
   const currentAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -307,6 +316,44 @@ export const useChat = (user: User | null) => {
     }
   }, [systemPromptCache]);
 
+  // Playground 오버라이드 설정 함수
+  const setPlaygroundOverridesHandler = useCallback((
+    mainPrompt: string, 
+    knowledgeBaseItems: Array<{ name: string; content: string }>
+  ) => {
+    setPlaygroundOverrides({
+      mainPrompt,
+      knowledgeBaseItems,
+    });
+    console.log('🎮 Playground 오버라이드 설정:', {
+      mainPromptLength: mainPrompt.length,
+      knowledgeBaseCount: knowledgeBaseItems.length
+    });
+  }, []);
+
+  // 시스템 프롬프트 구성 함수 (Playground 오버라이드 고려)
+  const buildSystemPrompt = useCallback(async (): Promise<string> => {
+    // Playground 오버라이드가 있으면 사용
+    if (playgroundOverrides.mainPrompt && playgroundOverrides.knowledgeBaseItems) {
+      console.log('🎮 Playground 오버라이드 시스템 프롬프트 사용');
+      
+      let systemPrompt = playgroundOverrides.mainPrompt;
+      
+      if (playgroundOverrides.knowledgeBaseItems.length > 0) {
+        systemPrompt += '\n\n---\n# Knowledge Base\n\n';
+        
+        for (const item of playgroundOverrides.knowledgeBaseItems) {
+          systemPrompt += `## ${item.name}\n${item.content}\n\n`;
+        }
+      }
+      
+      return systemPrompt;
+    }
+
+    // 기본 시스템 프롬프트 사용
+    return await getCachedSystemPrompt();
+  }, [playgroundOverrides, getCachedSystemPrompt]);
+
   // Send a message with streaming
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || !user) return;
@@ -407,7 +454,7 @@ export const useChat = (user: User | null) => {
 
         if (userMsgError) throw userMsgError;
 
-        const systemPrompt = await getCachedSystemPrompt();
+        const systemPrompt = await buildSystemPrompt();
         const systemPromptContent = `**현재 시스템 프롬프트:**\n\n\`\`\`\n${systemPrompt}\n\`\`\``;
         
         // 어시스턴트 메시지 저장
@@ -538,6 +585,9 @@ export const useChat = (user: User | null) => {
         content: msg.content
       }));
 
+      // 시스템 프롬프트 구성 (Playground 오버라이드 고려)
+      const systemPrompt = await buildSystemPrompt();
+
       let assistantContent = '';
 
       await generateStreamingResponse(apiMessages, {
@@ -616,7 +666,7 @@ export const useChat = (user: User | null) => {
             ),
           }));
         }
-      }, abortController.signal);
+      }, abortController.signal, systemPrompt);
     } catch (error) {
       activeRequests.delete(requestId);
       
@@ -646,7 +696,7 @@ export const useChat = (user: User | null) => {
         ),
       }));
     }
-  }, [state.currentSessionId, state.sessions, createNewSession, getCachedSystemPrompt, user]);
+  }, [state.currentSessionId, state.sessions, createNewSession, buildSystemPrompt, user]);
 
   // Switch to a different session
   const switchSession = useCallback((sessionId: string) => {
@@ -742,5 +792,6 @@ export const useChat = (user: User | null) => {
     renameSession,
     clearError,
     stopGenerating,
+    setPlaygroundOverrides: setPlaygroundOverridesHandler,
   };
 };

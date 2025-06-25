@@ -85,11 +85,12 @@ const isAbortError = (error: any): boolean => {
   );
 };
 
-// 스트리밍 응답을 위한 함수 (AbortSignal 지원)
+// 스트리밍 응답을 위한 함수 (AbortSignal 지원, systemPrompt 매개변수 추가)
 export const generateStreamingResponse = async (
   messages: Array<{role: 'user' | 'assistant', content: string}>,
   callback: StreamCallback,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  systemPrompt?: string
 ): Promise<void> => {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY;
 
@@ -105,10 +106,12 @@ export const generateStreamingResponse = async (
       messages,
       apiKey,
       stream: true,
+      systemPrompt, // Pass custom system prompt if provided
     };
 
     console.log('Claude Sonnet 4 Streaming Request:', {
-      messageCount: messages.length
+      messageCount: messages.length,
+      hasCustomSystemPrompt: !!systemPrompt
     });
     
     const response = await fetch(apiUrl, {
@@ -226,5 +229,48 @@ export const fetchSystemPrompt = async (): Promise<string> => {
       throw error;
     }
     throw new Error('Failed to fetch system prompt');
+  }
+};
+
+// 프롬프트 구성 요소들을 개별적으로 가져오는 함수
+export const fetchPromptComponents = async (): Promise<{
+  mainPrompt: string;
+  knowledgeBaseItems: Array<{ name: string; content: string }>;
+}> => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-prompt-components`;
+    
+    console.log('Fetching prompt components...');
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Prompt components request failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('Prompt components fetched:', {
+      mainPromptLength: data.mainPrompt?.length || 0,
+      knowledgeBaseCount: data.knowledgeBaseItems?.length || 0
+    });
+    
+    return {
+      mainPrompt: data.mainPrompt || '',
+      knowledgeBaseItems: data.knowledgeBaseItems || []
+    };
+  } catch (error) {
+    console.error('Prompt Components Fetch Error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to fetch prompt components');
   }
 };

@@ -6,7 +6,7 @@ import { AdminSettings } from './components/AdminSettings';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
 import { useUserRole } from './hooks/useUserRole';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Shield } from 'lucide-react';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Shield, Play } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -24,6 +24,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [showPlayground, setShowPlayground] = useState(false);
   
   const {
     sessions,
@@ -38,6 +39,7 @@ function App() {
     renameSession,
     clearError,
     stopGenerating,
+    setPlaygroundOverrides,
   } = useChat(user);
 
   // Show loading spinner while checking auth state or user role
@@ -169,15 +171,27 @@ function App() {
               </Dropdown>
             </div>
             
-            <button
-              onClick={createNewSession}
-              className="w-full flex items-center gap-2 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 transition-colors group"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="font-medium">새 채팅</span>
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={createNewSession}
+                className="w-full flex items-center gap-2 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 transition-colors group"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="font-medium">새 채팅</span>
+              </button>
+
+              {role === 'admin' && (
+                <button
+                  onClick={() => setShowPlayground(true)}
+                  className="w-full flex items-center gap-2 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 transition-colors group"
+                >
+                  <Play size={20} className="text-slate-600" />
+                  <span className="font-medium">PLAYGROUND</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Chat History */}
@@ -283,6 +297,15 @@ function App() {
       {/* Admin Settings Modal */}
       {showAdminSettings && role === 'admin' && (
         <AdminSettings onClose={() => setShowAdminSettings(false)} />
+      )}
+
+      {/* Playground Modal */}
+      {showPlayground && role === 'admin' && (
+        <AdminSettings 
+          onClose={() => setShowPlayground(false)} 
+          isPlayground={true}
+          onApplyPlayground={setPlaygroundOverrides}
+        />
       )}
     </div>
   );
