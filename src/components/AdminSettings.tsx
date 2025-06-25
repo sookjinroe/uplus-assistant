@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Database, Users, FileText, X, Upload, Trash2, Rocket, AlertTriangle, Clock, User } from 'lucide-react';
+import { Settings, FileText, X, Upload, Trash2, Rocket, AlertTriangle, Clock, User } from 'lucide-react';
 import { useGlobalPrompt } from '../hooks/useGlobalPrompt';
 
 interface AdminSettingsProps {
@@ -7,7 +7,6 @@ interface AdminSettingsProps {
 }
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'prompts' | 'system'>('prompts');
   const [deploymentNotes, setDeploymentNotes] = useState('');
   const [showDeployModal, setShowDeployModal] = useState(false);
 
@@ -34,12 +33,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
     loadGlobalData();
     loadDeploymentHistory();
   }, [loadGlobalData, loadDeploymentHistory]);
-
-  const tabs = [
-    { id: 'users' as const, label: '사용자 관리', icon: Users },
-    { id: 'prompts' as const, label: '전역 프롬프트 관리', icon: FileText },
-    { id: 'system' as const, label: '시스템 설정', icon: Database },
-  ];
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -79,7 +72,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -94,25 +87,12 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tab Header */}
         <div className="flex border-b border-gray-200">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'text-primary border-b-2 border-primary bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-              >
-                <Icon size={18} />
-                {tab.label}
-              </button>
-            );
-          })}
+          <div className="flex items-center gap-2 px-6 py-3 font-medium text-primary border-b-2 border-primary bg-blue-50">
+            <FileText size={18} />
+            전역 프롬프트 관리
+          </div>
         </div>
 
         {/* Content */}
@@ -133,48 +113,36 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
             </div>
           )}
 
-          {activeTab === 'users' && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">사용자 관리</h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-gray-600">사용자 관리 기능이 곧 추가될 예정입니다.</p>
-                <ul className="mt-2 text-sm text-gray-500 space-y-1">
-                  <li>• 사용자 목록 조회</li>
-                  <li>• 역할 변경 (admin/user)</li>
-                  <li>• 사용자 활동 통계</li>
-                </ul>
+          <div className="space-y-6">
+            {/* Deploy Button */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">전역 프롬프트 관리</h3>
+              <div className="flex items-center gap-2">
+                {hasChanges && (
+                  <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+                    수정됨
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowDeployModal(true)}
+                  disabled={deploying || !hasChanges}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Rocket size={16} />
+                  {deploying ? '배포 중...' : '전역 프롬프트 배포'}
+                </button>
               </div>
             </div>
-          )}
 
-          {activeTab === 'prompts' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">전역 프롬프트 관리</h3>
-                <div className="flex items-center gap-2">
-                  {hasChanges && (
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
-                      수정됨
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setShowDeployModal(true)}
-                    disabled={deploying || !hasChanges}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Rocket size={16} />
-                    {deploying ? '배포 중...' : '전역 프롬프트 배포'}
-                  </button>
-                </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <span className="ml-2 text-gray-600">로딩 중...</span>
               </div>
-
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  <span className="ml-2 text-gray-600">로딩 중...</span>
-                </div>
-              ) : (
-                <>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Left Column - Prompt Management */}
+                <div className="space-y-6">
                   {/* Main Prompt Section */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -211,7 +179,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                       </label>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
                       {knowledgeBase.length === 0 ? (
                         <div className="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                           <FileText size={32} className="mx-auto mb-2 opacity-50" />
@@ -268,65 +236,50 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                       </div>
                     </div>
                   )}
+                </div>
 
-                  {/* Deployment History */}
-                  <div>
-                    <h4 className="text-md font-medium text-gray-700 mb-3">배포 이력</h4>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {deploymentHistory.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                          <Clock size={24} className="mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">배포 이력이 없습니다</p>
-                        </div>
-                      ) : (
-                        deploymentHistory.map((deployment) => (
-                          <div
-                            key={deployment.id}
-                            className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Rocket size={14} className="text-green-600" />
-                                <span className="text-sm font-medium text-gray-700">
-                                  {formatDate(deployment.deployedAt)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <User size={12} />
-                                {deployment.deployedByEmail}
-                              </div>
+                {/* Right Column - Deployment History */}
+                <div>
+                  <h4 className="text-md font-medium text-gray-700 mb-3">배포 이력</h4>
+                  <div className="space-y-2 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                    {deploymentHistory.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Clock size={24} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">배포 이력이 없습니다</p>
+                      </div>
+                    ) : (
+                      deploymentHistory.map((deployment) => (
+                        <div
+                          key={deployment.id}
+                          className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Rocket size={14} className="text-green-600" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {formatDate(deployment.deployedAt)}
+                              </span>
                             </div>
-                            <div className="text-xs text-gray-600 space-y-1">
-                              <p>메인 프롬프트: {deployment.mainPromptLength.toLocaleString()} 글자</p>
-                              <p>지식 기반: {deployment.knowledgeBaseItems}개 항목</p>
-                              {deployment.deploymentNotes && (
-                                <p className="italic">"{deployment.deploymentNotes}"</p>
-                              )}
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <User size={12} />
+                              {deployment.deployedByEmail}
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            <p>메인 프롬프트: {deployment.mainPromptLength.toLocaleString()} 글자</p>
+                            <p>지식 기반: {deployment.knowledgeBaseItems}개 항목</p>
+                            {deployment.deploymentNotes && (
+                              <p className="italic">"{deployment.deploymentNotes}"</p>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'system' && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">시스템 설정</h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-gray-600">시스템 설정 기능이 곧 추가될 예정입니다.</p>
-                <ul className="mt-2 text-sm text-gray-500 space-y-1">
-                  <li>• API 키 관리</li>
-                  <li>• 로그 조회</li>
-                  <li>• 백업 및 복원</li>
-                  <li>• 성능 모니터링</li>
-                </ul>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
