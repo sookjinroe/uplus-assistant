@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatHistory } from './components/ChatHistory';
 import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
+import { AdminSettings } from './components/AdminSettings';
+import { PlaygroundPanel } from './components/PlaygroundPanel';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User } from 'lucide-react';
+import { useUserRole } from './hooks/useUserRole';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Play } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -17,9 +20,12 @@ const getDisplayTitle = (title: string, maxLength: number = 40): string => {
 
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { role, loading: roleLoading } = useUserRole(user);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [playgroundOpen, setPlaygroundOpen] = useState(false);
   
   const {
     sessions,
@@ -34,10 +40,19 @@ function App() {
     renameSession,
     clearError,
     stopGenerating,
+    applyPlaygroundChangesToSession,
   } = useChat(user);
 
-  // Show loading spinner while checking auth state
-  if (authLoading) {
+  // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
+  useEffect(() => {
+    if (role !== 'admin' && playgroundOpen) {
+      console.log('🔒 일반 사용자로 전환됨 - 플레이그라운드 패널 닫기');
+      setPlaygroundOpen(false);
+    }
+  }, [role, playgroundOpen]);
+
+  // Show loading spinner while checking auth state or user role
+  if (authLoading || roleLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -95,6 +110,15 @@ function App() {
     }
   };
 
+  const handlePlaygroundToggle = () => {
+    // 관리자만 플레이그라운드 패널을 열 수 있음
+    if (role === 'admin') {
+      setPlaygroundOpen(!playgroundOpen);
+    } else {
+      console.warn('⚠️ 일반 사용자는 플레이그라운드에 접근할 수 없습니다.');
+    }
+  };
+
   // 현재 세션이 sessions 배열에 있는지 확인 (빈 세션이 아닌지)
   const isCurrentSessionInList = currentSession && sessions.some(s => s.id === currentSession.id);
 
@@ -116,7 +140,14 @@ function App() {
           {/* Header with service name and user info */}
           <div className="p-4 pb-3 border-b border-slate-200">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
+                {role === 'admin' && (
+                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                    ADMIN
+                  </span>
+                )}
+              </div>
               
               {/* User Menu */}
               <Dropdown
@@ -131,7 +162,21 @@ function App() {
                   <p className="text-sm font-medium text-slate-800 truncate">
                     {user.email}
                   </p>
+                  {role === 'admin' && (
+                    <p className="text-xs text-red-600 font-medium">관리자</p>
+                  )}
                 </div>
+                {role === 'admin' && (
+                  <DropdownItem
+                    onClick={() => setShowAdminSettings(true)}
+                    className="text-primary hover:bg-blue-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings size={14} />
+                      관리자 설정
+                    </div>
+                  </DropdownItem>
+                )}
                 <DropdownItem
                   onClick={handleSignOut}
                   className="text-red-600 hover:bg-red-50"
@@ -169,91 +214,141 @@ function App() {
         </div>
       </div>
 
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col relative">
-        {/* Header - 세션이 목록에 있을 때만 표시 */}
-        {isCurrentSessionInList && (
-          <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-background via-background/80 to-transparent pt-6">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+      {/* Main content area */}
+      <div className="flex-1 flex relative">
+        {/* Chat area */}
+        <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
+          playgroundOpen ? 'mr-96' : ''
+        }`}>
+          {/* Header - 세션이 목록에 있을 때만 표시 */}
+          {isCurrentSessionInList && (
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-background via-background/80 to-transparent pt-6">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="lg:hidden p-2 rounded-lg hover:bg-light transition-colors flex-shrink-0"
+                >
+                  {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+                </button>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {editingTitle ? (
+                    <input
+                      type="text"
+                      value={titleValue}
+                      onChange={(e) => setTitleValue(e.target.value)}
+                      onBlur={handleTitleRenameSubmit}
+                      onKeyDown={handleTitleKeyDown}
+                      className="text-xl font-semibold text-text bg-background border border-primary rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-0 flex-1"
+                      autoFocus
+                      maxLength={50}
+                    />
+                  ) : (
+                    <h1 className="text-xl font-semibold text-text truncate min-w-0">
+                      {getDisplayTitle(currentSession?.title || 'AI Chat')}
+                    </h1>
+                  )}
+                  
+                  {/* 드롭다운 메뉴 */}
+                  {!editingTitle && (
+                    <Dropdown
+                      trigger={
+                        <button className="p-1 rounded hover:bg-light transition-colors flex-shrink-0">
+                          <ChevronDown size={16} className="text-secondary" />
+                        </button>
+                      }
+                    >
+                      <DropdownItem onClick={handleTitleRenameStart}>
+                        <div className="flex items-center gap-2">
+                          <Edit2 size={14} />
+                          이름 변경
+                        </div>
+                      </DropdownItem>
+                      <DropdownItem
+                        onClick={handleDeleteCurrentSession}
+                        className="text-error hover:bg-error/10"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Trash2 size={14} />
+                          삭제
+                        </div>
+                      </DropdownItem>
+                    </Dropdown>
+                  )}
+                </div>
+              </div>
+
+              {/* PLAYGROUND 버튼 - 관리자만 표시 */}
+              {role === 'admin' && (
+                <button
+                  onClick={handlePlaygroundToggle}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors ${
+                    playgroundOpen
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Play size={16} />
+                  PLAYGROUND
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 빈 채팅일 때 모바일 메뉴 버튼과 PLAYGROUND 버튼 */}
+          {!isCurrentSessionInList && (
+            <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 rounded-lg hover:bg-light transition-colors flex-shrink-0"
+                className="lg:hidden p-2 rounded-lg bg-background shadow-md hover:bg-light transition-colors"
               >
                 {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {editingTitle ? (
-                  <input
-                    type="text"
-                    value={titleValue}
-                    onChange={(e) => setTitleValue(e.target.value)}
-                    onBlur={handleTitleRenameSubmit}
-                    onKeyDown={handleTitleKeyDown}
-                    className="text-xl font-semibold text-text bg-background border border-primary rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-0 flex-1"
-                    autoFocus
-                    maxLength={50}
-                  />
-                ) : (
-                  <h1 className="text-xl font-semibold text-text truncate min-w-0">
-                    {getDisplayTitle(currentSession?.title || 'AI Chat')}
-                  </h1>
-                )}
-                
-                {/* 드롭다운 메뉴 */}
-                {!editingTitle && (
-                  <Dropdown
-                    trigger={
-                      <button className="p-1 rounded hover:bg-light transition-colors flex-shrink-0">
-                        <ChevronDown size={16} className="text-secondary" />
-                      </button>
-                    }
-                  >
-                    <DropdownItem onClick={handleTitleRenameStart}>
-                      <div className="flex items-center gap-2">
-                        <Edit2 size={14} />
-                        이름 변경
-                      </div>
-                    </DropdownItem>
-                    <DropdownItem
-                      onClick={handleDeleteCurrentSession}
-                      className="text-error hover:bg-error/10"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Trash2 size={14} />
-                        삭제
-                      </div>
-                    </DropdownItem>
-                  </Dropdown>
-                )}
-              </div>
+
+              {/* PLAYGROUND 버튼 - 관리자만 표시 */}
+              {role === 'admin' && (
+                <button
+                  onClick={handlePlaygroundToggle}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors shadow-md ${
+                    playgroundOpen
+                      ? 'bg-primary text-white'
+                      : 'bg-background text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <Play size={16} />
+                  PLAYGROUND
+                </button>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 빈 채팅일 때 모바일 메뉴 버튼 */}
-        {!isCurrentSessionInList && (
-          <div className="lg:hidden absolute top-4 left-4 z-10">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg bg-background shadow-md hover:bg-light transition-colors"
-            >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        )}
+          {/* Chat area */}
+          <ChatArea
+            messages={currentSession?.messages || []}
+            isLoading={isLoading}
+            isStreamingContent={isStreamingContent}
+            error={error}
+            onSendMessage={sendMessage}
+            onStopGenerating={stopGenerating}
+            onClearError={clearError}
+            hasHeader={isCurrentSessionInList}
+          />
+        </div>
 
-        {/* Chat area */}
-        <ChatArea
-          messages={currentSession?.messages || []}
-          isLoading={isLoading}
-          isStreamingContent={isStreamingContent}
-          error={error}
-          onSendMessage={sendMessage}
-          onStopGenerating={stopGenerating}
-          onClearError={clearError}
-          hasHeader={isCurrentSessionInList}
-        />
+        {/* Playground Panel - 관리자만 렌더링 */}
+        {role === 'admin' && (
+          <PlaygroundPanel 
+            isOpen={playgroundOpen}
+            onClose={() => setPlaygroundOpen(false)}
+            currentSession={currentSession}
+            onApply={applyPlaygroundChangesToSession}
+          />
+        )}
       </div>
+
+      {/* Admin Settings Modal */}
+      {showAdminSettings && role === 'admin' && (
+        <AdminSettings onClose={() => setShowAdminSettings(false)} />
+      )}
     </div>
   );
 }

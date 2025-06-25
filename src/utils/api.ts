@@ -85,11 +85,18 @@ const isAbortError = (error: any): boolean => {
   );
 };
 
-// 스트리밍 응답을 위한 함수 (AbortSignal 지원)
+// 스트리밍 응답을 위한 함수 (AbortSignal 지원 및 플레이그라운드 데이터 지원)
 export const generateStreamingResponse = async (
   messages: Array<{role: 'user' | 'assistant', content: string}>,
   callback: StreamCallback,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  playgroundMainPromptContent?: string,
+  playgroundKnowledgeBaseSnapshot?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>
 ): Promise<void> => {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY;
 
@@ -105,10 +112,14 @@ export const generateStreamingResponse = async (
       messages,
       apiKey,
       stream: true,
+      playgroundMainPromptContent,
+      playgroundKnowledgeBaseSnapshot,
     };
 
     console.log('Claude Sonnet 4 Streaming Request:', {
-      messageCount: messages.length
+      messageCount: messages.length,
+      hasPlaygroundPrompt: !!playgroundMainPromptContent,
+      playgroundKnowledgeItems: playgroundKnowledgeBaseSnapshot?.length || 0
     });
     
     const response = await fetch(apiUrl, {
@@ -192,39 +203,130 @@ export const generateStreamingResponse = async (
   }
 };
 
-// 시스템 프롬프트를 가져오는 함수
-export const fetchSystemPrompt = async (): Promise<string> => {
+// 전역 프롬프트 관리 API 함수들
+export const fetchGlobalPromptAndKnowledgeBase = async (accessToken?: string) => {
   try {
-    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-system-prompt`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
     
-    console.log('Fetching system prompt...');
+    const [mainPromptResult, knowledgeBaseResult] = await Promise.all([
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.main_prompt&name=eq.main_prompt&select=content`, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': authHeader,
+        },
+      }),
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.knowledge_base&select=id,name,content,order_index&order=order_index.asc`, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': authHeader,
+        },
+      })
+    ]);
+
+    if (!mainPromptResult.ok || !knowledgeBaseResult.ok) {
+      throw new Error('Failed to fetch global prompt data');
+    }
+
+    const mainPromptData = await mainPromptResult.json();
+    const knowledgeBaseData = await knowledgeBaseResult.json();
+
+    return {
+      mainPrompt: mainPromptData[0]?.content || '',
+      knowledgeBase: knowledgeBaseData || []
+    };
+  } catch (error) {
+    console.error('Error fetching global prompt data:', error);
+    throw error;
+  }
+};
+
+export const updateGlobalPromptAndKnowledgeBase = async (
+  mainPromptContent: string,
+  knowledgeBaseItems: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>,
+  accessToken?: string
+) => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-global-prompt`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify({
+        mainPromptContent,
+        knowledgeBaseItems
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Update failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating global prompt:', error);
+    throw error;
+  }
+};
+
+export const saveDeploymentSnapshot = async (deploymentNotes?: string, accessToken?: string) => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-deployment-snapshot`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify({
+        deploymentNotes
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Snapshot save failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error saving deployment snapshot:', error);
+    throw error;
+  }
+};
+
+export const fetchDeploymentHistory = async (accessToken?: string) => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-deployment-history`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
       },
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`System prompt request failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+      throw new Error(`History fetch failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
     }
 
-    const data = await response.json();
-    
-    console.log('System prompt fetched:', {
-      length: data.promptLength,
-      timestamp: data.timestamp
-    });
-    
-    return data.systemPrompt;
+    return await response.json();
   } catch (error) {
-    console.error('System Prompt Fetch Error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to fetch system prompt');
+    console.error('Error fetching deployment history:', error);
+    throw error;
   }
 };

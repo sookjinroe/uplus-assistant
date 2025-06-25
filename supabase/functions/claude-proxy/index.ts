@@ -8,6 +8,13 @@ interface ClaudeRequest {
   messages: Array<{role: 'user' | 'assistant', content: string}>;
   apiKey: string;
   stream?: boolean;
+  playgroundMainPromptContent?: string;
+  playgroundKnowledgeBaseSnapshot?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>;
 }
 
 // 시스템 프롬프트 캐시 관련 변수들
@@ -20,19 +27,54 @@ function isCacheValid(): boolean {
   return cachedSystemPrompt !== null && (Date.now() - cacheTimestamp) < CACHE_TTL;
 }
 
-// 시스템 프롬프트를 직접 구성하는 함수 (네트워크 호출 제거)
-async function buildSystemPromptDirect(): Promise<string> {
+// 시스템 프롬프트를 구성하는 함수 (플레이그라운드 우선순위 적용)
+async function buildSystemPrompt(
+  playgroundMainPromptContent?: string,
+  playgroundKnowledgeBaseSnapshot?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>
+): Promise<string> {
   try {
-    // 캐시가 유효하면 캐시된 프롬프트 반환
+    // 플레이그라운드 데이터가 있으면 우선 사용
+    if (playgroundMainPromptContent !== undefined || playgroundKnowledgeBaseSnapshot !== undefined) {
+      console.log('🎮 플레이그라운드 데이터로 시스템 프롬프트 구성:', {
+        hasMainPrompt: !!playgroundMainPromptContent,
+        knowledgeBaseItems: playgroundKnowledgeBaseSnapshot?.length || 0
+      });
+
+      let fullSystemPrompt = playgroundMainPromptContent || "You are Claude, a helpful AI assistant created by Anthropic. Please respond naturally and helpfully to the user's questions.";
+
+      if (playgroundKnowledgeBaseSnapshot && playgroundKnowledgeBaseSnapshot.length > 0) {
+        fullSystemPrompt += '\n\n---\n# Knowledge Base\n\n';
+        
+        // order_index로 정렬
+        const sortedKnowledgeBase = [...playgroundKnowledgeBaseSnapshot].sort((a, b) => a.order_index - b.order_index);
+        
+        for (const item of sortedKnowledgeBase) {
+          fullSystemPrompt += `## ${item.name}\n${item.content}\n\n`;
+        }
+      }
+
+      console.log('✅ 플레이그라운드 시스템 프롬프트 구성 완료:', {
+        totalLength: fullSystemPrompt.length
+      });
+
+      return fullSystemPrompt;
+    }
+
+    // 플레이그라운드 데이터가 없으면 전역 캐시 확인
     if (isCacheValid()) {
-      console.log('시스템 프롬프트 캐시 히트:', {
+      console.log('💾 전역 시스템 프롬프트 캐시 히트:', {
         cacheAge: Math.round((Date.now() - cacheTimestamp) / 1000),
         promptLength: cachedSystemPrompt!.length
       });
       return cachedSystemPrompt!;
     }
 
-    console.log('시스템 프롬프트 캐시 미스 - 데이터베이스에서 새로 가져오는 중...');
+    console.log('🌐 전역 시스템 프롬프트 캐시 미스 - 데이터베이스에서 새로 가져오는 중...');
 
     // Supabase 클라이언트 초기화
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -53,8 +95,7 @@ async function buildSystemPromptDirect(): Promise<string> {
         .from('prompts_and_knowledge_base')
         .select('content')
         .eq('type', 'main_prompt')
-        .eq('name', 'main_prompt')
-        .single(),
+        .eq('name', 'main_prompt'),
       supabase
         .from('prompts_and_knowledge_base')
         .select('name, content')
@@ -72,8 +113,13 @@ async function buildSystemPromptDirect(): Promise<string> {
       throw new Error('Failed to fetch knowledge base');
     }
 
+    // 메인 프롬프트가 없으면 기본값 사용
+    const mainPromptContent = mainPromptResult.data && mainPromptResult.data.length > 0 
+      ? mainPromptResult.data[0].content 
+      : "You are Claude, a helpful AI assistant created by Anthropic. Please respond naturally and helpfully to the user's questions.";
+
     // 시스템 프롬프트 구성
-    let fullSystemPrompt = mainPromptResult.data.content;
+    let fullSystemPrompt = mainPromptContent;
 
     if (knowledgeBaseResult.data && knowledgeBaseResult.data.length > 0) {
       fullSystemPrompt += '\n\n---\n# Knowledge Base\n\n';
@@ -87,8 +133,8 @@ async function buildSystemPromptDirect(): Promise<string> {
     cachedSystemPrompt = fullSystemPrompt;
     cacheTimestamp = Date.now();
 
-    console.log('시스템 프롬프트 구성 및 캐싱 완료:', {
-      mainPromptLength: mainPromptResult.data.content.length,
+    console.log('✅ 전역 시스템 프롬프트 구성 및 캐싱 완료:', {
+      mainPromptLength: mainPromptContent.length,
       knowledgeBaseItems: knowledgeBaseResult.data?.length || 0,
       totalLength: fullSystemPrompt.length,
       cached: true
@@ -136,7 +182,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { messages, apiKey, stream = false }: ClaudeRequest = await req.json();
+    const { 
+      messages, 
+      apiKey, 
+      stream = false,
+      playgroundMainPromptContent,
+      playgroundKnowledgeBaseSnapshot
+    }: ClaudeRequest = await req.json();
 
     if (!apiKey) {
       return new Response(
@@ -164,8 +216,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 시스템 프롬프트를 직접 구성 (네트워크 호출 제거로 지연 시간 단축)
-    const systemPrompt = await buildSystemPromptDirect();
+    // 시스템 프롬프트 구성 (플레이그라운드 우선순위 적용)
+    const systemPrompt = await buildSystemPrompt(playgroundMainPromptContent, playgroundKnowledgeBaseSnapshot);
 
     // Claude의 200K 토큰 컨텍스트 윈도우를 활용하여 더 많은 메시지 히스토리 유지
     const recentMessages = messages.slice(-100);
@@ -181,7 +233,7 @@ Deno.serve(async (req: Request) => {
       max_tokens: 8192,
       temperature: 0.7,
       messages: finalMessages,
-      system: systemPrompt, // 캐시된 시스템 프롬프트 사용
+      system: systemPrompt, // 구성된 시스템 프롬프트 사용
       stream: stream,
     };
 
@@ -192,7 +244,8 @@ Deno.serve(async (req: Request) => {
       systemPromptLength: systemPrompt.length,
       maxTokens: requestBody.max_tokens,
       streaming: stream,
-      cacheHit: isCacheValid()
+      playgroundMode: !!(playgroundMainPromptContent || playgroundKnowledgeBaseSnapshot),
+      cacheHit: !playgroundMainPromptContent && !playgroundKnowledgeBaseSnapshot && isCacheValid()
     });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
