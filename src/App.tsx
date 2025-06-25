@@ -4,11 +4,10 @@ import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
 import { AdminSettings } from './components/AdminSettings';
 import { PlaygroundPanel } from './components/PlaygroundPanel';
-import { DebugPanel } from './components/DebugPanel';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
 import { useUserRole } from './hooks/useUserRole';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Shield, Play } from 'lucide-react';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Play } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -27,7 +26,6 @@ function App() {
   const [titleValue, setTitleValue] = useState('');
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [playgroundOpen, setPlaygroundOpen] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
   
   const {
     sessions,
@@ -179,15 +177,6 @@ function App() {
                     </div>
                   </DropdownItem>
                 )}
-                <DropdownItem
-                  onClick={() => setShowDebug(!showDebug)}
-                  className="text-gray-600 hover:bg-gray-50"
-                >
-                  <div className="flex items-center gap-2">
-                    <Shield size={14} />
-                    디버그 정보
-                  </div>
-                </DropdownItem>
                 <DropdownItem
                   onClick={handleSignOut}
                   className="text-red-600 hover:bg-red-50"
@@ -360,9 +349,6 @@ function App() {
       {showAdminSettings && role === 'admin' && (
         <AdminSettings onClose={() => setShowAdminSettings(false)} />
       )}
-
-      {/* Debug Panel */}
-      {showDebug && <DebugPanel />}
     </div>
   );
 }
