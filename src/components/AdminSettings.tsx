@@ -76,8 +76,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                 <ul className="mt-2 text-sm text-gray-500 space-y-1">
                   <li>• 메인 프롬프트 편집</li>
                   <li>• 지식 기반 항목 관리</li>
-                  <li>• 세그먼트 정보 업데이트</li>
-                  <li>• 카피 가이드라인 수정</li>
                 </ul>
               </div>
             </div>
