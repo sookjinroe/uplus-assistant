@@ -184,17 +184,13 @@ export const useChat = (user: User | null) => {
         knowledgeBaseItems: knowledgeBase.length
       });
 
-      // 기존 세션인지 확인하여 제목 결정
-      const existingSession = state.sessions.find(session => session.id === sessionId);
-      const sessionTitle = existingSession ? existingSession.title : 'Playground Session';
-
       // Use upsert to create or update session in database
       const { error } = await supabase
         .from('chat_sessions')
         .upsert({
           id: sessionId,
           user_id: user.id,
-          title: sessionTitle, // 기존 제목 유지 또는 새 세션용 기본 제목
+          title: 'Playground Session',
           playground_main_prompt_content: mainPrompt.trim() || null,
           playground_knowledge_base_snapshot: knowledgeBase.length > 0 ? knowledgeBase : null,
           updated_at: new Date().toISOString()
@@ -226,7 +222,7 @@ export const useChat = (user: User | null) => {
           const newSession: ChatSession = {
             id: sessionId!,
             userId: user.id,
-            title: sessionTitle,
+            title: 'Playground Session',
             messages: [],
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -246,7 +242,7 @@ export const useChat = (user: User | null) => {
       console.error('❌ 플레이그라운드 변경사항 적용 실패:', error);
       throw error;
     }
-  }, [user, state.currentSessionId, state.sessions]);
+  }, [user, state.currentSessionId]);
 
   // Create a new chat session
   const createNewSession = useCallback(async () => {

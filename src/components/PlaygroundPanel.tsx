@@ -27,12 +27,12 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
 
   const { applyPlaygroundChanges } = useChat(user);
 
-  // 데이터 로드 (세션 변경 시에도 반응) - 의존성을 currentSession 전체 객체로 변경
+  // 데이터 로드 (세션 변경 시에도 반응)
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen, currentSession]); // currentSession?.id에서 currentSession으로 변경
+  }, [isOpen, currentSession?.id]);
 
   const loadData = async () => {
     setLoading(true);
@@ -41,17 +41,12 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
     try {
       console.log('🔄 플레이그라운드 데이터 로딩 시작...', {
         sessionId: currentSession?.id,
-        hasPlaygroundData: !!(currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot),
-        playgroundMainPromptContent: currentSession?.playgroundMainPromptContent,
-        playgroundKnowledgeBaseSnapshot: currentSession?.playgroundKnowledgeBaseSnapshot
+        hasPlaygroundData: !!(currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot)
       });
       
       // 현재 세션에 플레이그라운드 데이터가 있는지 확인
       if (currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot) {
-        console.log('🎮 세션별 플레이그라운드 데이터 로드', {
-          mainPromptLength: currentSession.playgroundMainPromptContent?.length || 0,
-          knowledgeBaseItems: currentSession.playgroundKnowledgeBaseSnapshot?.length || 0
-        });
+        console.log('🎮 세션별 플레이그라운드 데이터 로드');
         
         setMainPrompt(currentSession.playgroundMainPromptContent || '');
         setKnowledgeBase(currentSession.playgroundKnowledgeBaseSnapshot || []);
