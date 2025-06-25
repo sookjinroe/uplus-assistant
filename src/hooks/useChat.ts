@@ -162,44 +162,80 @@ export const useChat = (user: User | null) => {
     mainPrompt: string,
     knowledgeBase: KnowledgeBaseItem[]
   ) => {
-    if (!user || !state.currentSessionId) {
-      throw new Error('No active session to apply changes to');
+    if (!user) {
+      throw new Error('User must be authenticated to apply playground changes');
+    }
+
+    let sessionId = state.currentSessionId;
+
+    // If no active session, create a new one
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      setState(prev => ({
+        ...prev,
+        currentSessionId: sessionId,
+      }));
     }
 
     try {
       console.log('🎮 플레이그라운드 변경사항 적용 시작:', {
-        sessionId: state.currentSessionId,
+        sessionId: sessionId,
         mainPromptLength: mainPrompt.length,
         knowledgeBaseItems: knowledgeBase.length
       });
 
-      // Update session in database
+      // Use upsert to create or update session in database
       const { error } = await supabase
         .from('chat_sessions')
-        .update({
+        .upsert({
+          id: sessionId,
+          user_id: user.id,
+          title: 'Playground Session',
           playground_main_prompt_content: mainPrompt.trim() || null,
           playground_knowledge_base_snapshot: knowledgeBase.length > 0 ? knowledgeBase : null,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', state.currentSessionId)
-        .eq('user_id', user.id);
+        });
 
       if (error) throw error;
 
       // Update local state
-      setState(prev => ({
-        ...prev,
-        sessions: prev.sessions.map(session =>
-          session.id === state.currentSessionId
-            ? {
-                ...session,
-                playgroundMainPromptContent: mainPrompt.trim() || undefined,
-                playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
-                updatedAt: new Date(),
-              }
-            : session
-        ),
-      }));
+      setState(prev => {
+        const existingSession = prev.sessions.find(session => session.id === sessionId);
+        
+        if (existingSession) {
+          // Update existing session
+          return {
+            ...prev,
+            sessions: prev.sessions.map(session =>
+              session.id === sessionId
+                ? {
+                    ...session,
+                    playgroundMainPromptContent: mainPrompt.trim() || undefined,
+                    playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
+                    updatedAt: new Date(),
+                  }
+                : session
+            ),
+          };
+        } else {
+          // Add new session
+          const newSession: ChatSession = {
+            id: sessionId!,
+            userId: user.id,
+            title: 'Playground Session',
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            playgroundMainPromptContent: mainPrompt.trim() || undefined,
+            playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
+          };
+
+          return {
+            ...prev,
+            sessions: [newSession, ...prev.sessions],
+          };
+        }
+      });
 
       console.log('✅ 플레이그라운드 변경사항 적용 완료');
     } catch (error) {
