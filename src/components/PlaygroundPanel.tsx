@@ -27,12 +27,12 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
 
   const { applyPlaygroundChanges } = useChat(user);
 
-  // 데이터 로드 (세션 변경 시에도 반응)
+  // 데이터 로드 (세션 변경 시에도 반응) - currentSession 전체 객체를 의존성으로 사용
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen, currentSession?.id]);
+  }, [isOpen, currentSession]);
 
   const loadData = async () => {
     setLoading(true);

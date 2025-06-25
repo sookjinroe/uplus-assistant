@@ -167,6 +167,7 @@ export const useChat = (user: User | null) => {
     }
 
     let sessionId = state.currentSessionId;
+    let sessionTitle = 'Playground Session'; // 기본 제목
 
     // If no active session, create a new one
     if (!sessionId) {
@@ -175,13 +176,20 @@ export const useChat = (user: User | null) => {
         ...prev,
         currentSessionId: sessionId,
       }));
+    } else {
+      // 기존 세션이 있는 경우, 해당 세션의 제목을 유지
+      const existingSession = state.sessions.find(session => session.id === sessionId);
+      if (existingSession) {
+        sessionTitle = existingSession.title;
+      }
     }
 
     try {
       console.log('🎮 플레이그라운드 변경사항 적용 시작:', {
         sessionId: sessionId,
         mainPromptLength: mainPrompt.length,
-        knowledgeBaseItems: knowledgeBase.length
+        knowledgeBaseItems: knowledgeBase.length,
+        sessionTitle: sessionTitle
       });
 
       // Use upsert to create or update session in database
@@ -190,7 +198,7 @@ export const useChat = (user: User | null) => {
         .upsert({
           id: sessionId,
           user_id: user.id,
-          title: 'Playground Session',
+          title: sessionTitle, // 기존 제목 유지 또는 기본 제목 사용
           playground_main_prompt_content: mainPrompt.trim() || null,
           playground_knowledge_base_snapshot: knowledgeBase.length > 0 ? knowledgeBase : null,
           updated_at: new Date().toISOString()
@@ -222,7 +230,7 @@ export const useChat = (user: User | null) => {
           const newSession: ChatSession = {
             id: sessionId!,
             userId: user.id,
-            title: 'Playground Session',
+            title: sessionTitle,
             messages: [],
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -242,7 +250,7 @@ export const useChat = (user: User | null) => {
       console.error('❌ 플레이그라운드 변경사항 적용 실패:', error);
       throw error;
     }
-  }, [user, state.currentSessionId]);
+  }, [user, state.currentSessionId, state.sessions]);
 
   // Create a new chat session
   const createNewSession = useCallback(async () => {
