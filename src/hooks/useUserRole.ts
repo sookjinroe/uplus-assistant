@@ -18,14 +18,16 @@ export const useUserRole = (user: User | null) => {
         const { data, error } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('user_id', user.id)
-          .single();
+          .eq('user_id', user.id);
 
         if (error) {
           console.error('Error fetching user role:', error);
           setRole('user'); // 기본값으로 user 설정
+        } else if (!data || data.length === 0) {
+          // No user profile found, set default role
+          setRole('user');
         } else {
-          setRole(data?.role || 'user');
+          setRole(data[0]?.role || 'user');
         }
       } catch (error) {
         console.error('Error in fetchUserRole:', error);
