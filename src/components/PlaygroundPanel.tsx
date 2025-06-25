@@ -33,18 +33,22 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
     setError(null);
     
     try {
-      // 메인 프롬프트 가져오기
+      // 메인 프롬프트 가져오기 - single() 대신 배열로 가져와서 안전하게 처리
       const { data: mainPromptData, error: mainPromptError } = await supabase
         .from('prompts_and_knowledge_base')
         .select('content')
         .eq('type', 'main_prompt')
-        .eq('name', 'main_prompt')
-        .single();
+        .eq('name', 'main_prompt');
 
       if (mainPromptError) {
         console.error('메인 프롬프트 로드 실패:', mainPromptError);
         throw new Error('메인 프롬프트를 불러올 수 없습니다.');
       }
+
+      // 메인 프롬프트가 없으면 빈 문자열로 초기화
+      const mainPromptContent = mainPromptData && mainPromptData.length > 0 
+        ? mainPromptData[0].content 
+        : '';
 
       // 지식 기반 항목들 가져오기
       const { data: knowledgeData, error: knowledgeError } = await supabase
@@ -58,7 +62,7 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
         throw new Error('지식 기반을 불러올 수 없습니다.');
       }
 
-      setMainPrompt(mainPromptData.content);
+      setMainPrompt(mainPromptContent);
       setKnowledgeBase(knowledgeData || []);
       setHasChanges(false);
     } catch (err) {

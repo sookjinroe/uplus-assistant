@@ -47,8 +47,7 @@ async function buildSystemPrompt(): Promise<string> {
         .from('prompts_and_knowledge_base')
         .select('content')
         .eq('type', 'main_prompt')
-        .eq('name', 'main_prompt')
-        .single(),
+        .eq('name', 'main_prompt'),
       supabase
         .from('prompts_and_knowledge_base')
         .select('name, content')
@@ -66,8 +65,13 @@ async function buildSystemPrompt(): Promise<string> {
       throw new Error('Failed to fetch knowledge base');
     }
 
+    // 메인 프롬프트가 없으면 기본값 사용
+    const mainPromptContent = mainPromptResult.data && mainPromptResult.data.length > 0 
+      ? mainPromptResult.data[0].content 
+      : "You are Claude, a helpful AI assistant created by Anthropic. Please respond naturally and helpfully to the user's questions.";
+
     // 시스템 프롬프트 구성
-    let fullSystemPrompt = mainPromptResult.data.content;
+    let fullSystemPrompt = mainPromptContent;
 
     if (knowledgeBaseResult.data && knowledgeBaseResult.data.length > 0) {
       fullSystemPrompt += '\n\n---\n# Knowledge Base\n\n';
@@ -82,7 +86,7 @@ async function buildSystemPrompt(): Promise<string> {
     cacheTimestamp = Date.now();
 
     console.log('시스템 프롬프트 구성 및 캐싱 완료:', {
-      mainPromptLength: mainPromptResult.data.content.length,
+      mainPromptLength: mainPromptContent.length,
       knowledgeBaseItems: knowledgeBaseResult.data?.length || 0,
       totalLength: fullSystemPrompt.length,
       cached: true
