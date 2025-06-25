@@ -9,8 +9,10 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   // 사용자 역할을 가져오는 함수
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string): Promise<'admin' | 'user'> => {
     try {
+      console.log('Fetching user role for:', userId);
+      
       const { data, error } = await supabase
         .from('user_profiles')
         .select('role')
@@ -19,9 +21,29 @@ export const useAuth = () => {
 
       if (error) {
         console.error('Error fetching user role:', error);
+        
+        // 프로필이 없는 경우 기본 프로필 생성 시도
+        if (error.code === 'PGRST116') {
+          console.log('No profile found, creating default profile...');
+          
+          const { error: insertError } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: userId,
+              role: 'user'
+            });
+          
+          if (insertError) {
+            console.error('Error creating user profile:', insertError);
+          } else {
+            console.log('Default profile created successfully');
+          }
+        }
+        
         return 'user'; // 기본값
       }
 
+      console.log('User role fetched:', data?.role);
       return data?.role || 'user';
     } catch (error) {
       console.error('Error in fetchUserRole:', error);
@@ -33,18 +55,27 @@ export const useAuth = () => {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        console.log('Getting initial session...');
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
         } else {
+          console.log('Initial session:', session?.user?.email || 'No user');
+          
           setSession(session);
           setUser(session?.user ?? null);
           
           // 사용자가 있으면 역할 가져오기
           if (session?.user) {
-            const role = await fetchUserRole(session.user.id);
-            setUserRole(role);
+            try {
+              const role = await fetchUserRole(session.user.id);
+              setUserRole(role);
+            } catch (error) {
+              console.error('Error fetching user role in initial session:', error);
+              setUserRole('user'); // 기본값 설정
+            }
           } else {
             setUserRole(null);
           }
@@ -52,6 +83,7 @@ export const useAuth = () => {
       } catch (error) {
         console.error('Error in getInitialSession:', error);
       } finally {
+        console.log('Setting loading to false');
         setLoading(false);
       }
     };
@@ -61,15 +93,20 @@ export const useAuth = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
+        console.log('Auth state changed:', event, session?.user?.email || 'No user');
         
         setSession(session);
         setUser(session?.user ?? null);
         
         // 사용자가 있으면 역할 가져오기
         if (session?.user) {
-          const role = await fetchUserRole(session.user.id);
-          setUserRole(role);
+          try {
+            const role = await fetchUserRole(session.user.id);
+            setUserRole(role);
+          } catch (error) {
+            console.error('Error fetching user role in auth state change:', error);
+            setUserRole('user'); // 기본값 설정
+          }
         } else {
           setUserRole(null);
         }
