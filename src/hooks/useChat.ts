@@ -393,13 +393,16 @@ export const useChat = (user: User | null) => {
       });
 
       try {
-        // 세션을 데이터베이스에 저장
+        // 세션을 데이터베이스에 저장 (제목은 새 세션일 때만 설정)
+        const currentSession = state.sessions.find(s => s.id === sessionId);
+        const isNewSession = !currentSession || currentSession.messages.length === 0;
+        
         const { error: sessionError } = await supabase
           .from('chat_sessions')
           .upsert({
             id: sessionId,
             user_id: user.id,
-            title: 'System Prompt Debug',
+            title: isNewSession ? 'System Prompt Debug' : undefined, // 기존 세션이면 제목 업데이트 안함
           });
 
         if (sessionError) throw sessionError;
@@ -491,6 +494,7 @@ export const useChat = (user: User | null) => {
                 ? {
                     ...session,
                     messages: [...session.messages, userMessage, assistantMessage],
+                    // 제목은 새 세션일 때만 설정 (기존 세션의 제목은 유지)
                     title: session.messages.length === 0 ? sessionTitle : session.title,
                     updatedAt: new Date(),
                   }
@@ -514,14 +518,24 @@ export const useChat = (user: User | null) => {
     });
 
     try {
-      // 세션을 데이터베이스에 저장
+      // 현재 세션이 새 세션인지 확인
+      const currentSession = state.sessions.find(s => s.id === sessionId);
+      const isNewSession = !currentSession || currentSession.messages.length === 0;
+
+      // 세션을 데이터베이스에 저장 (제목은 새 세션일 때만 설정)
+      const sessionData: any = {
+        id: sessionId,
+        user_id: user.id,
+      };
+
+      // 새 세션인 경우에만 제목 설정
+      if (isNewSession) {
+        sessionData.title = createTitleFromMessage(content);
+      }
+
       const { error: sessionError } = await supabase
         .from('chat_sessions')
-        .upsert({
-          id: sessionId,
-          user_id: user.id,
-          title: createTitleFromMessage(content),
-        });
+        .upsert(sessionData);
 
       if (sessionError) throw sessionError;
 
@@ -538,8 +552,8 @@ export const useChat = (user: User | null) => {
       if (userMsgError) throw userMsgError;
 
       // 현재 세션의 대화 히스토리 구성
-      const currentSession = state.sessions.find(s => s.id === sessionId);
-      const conversationHistory = currentSession ? [...currentSession.messages, userMessage] : [userMessage];
+      const sessionForHistory = state.sessions.find(s => s.id === sessionId);
+      const conversationHistory = sessionForHistory ? [...sessionForHistory.messages, userMessage] : [userMessage];
       
       const apiMessages = conversationHistory.map(msg => ({
         role: msg.role,
@@ -547,8 +561,8 @@ export const useChat = (user: User | null) => {
       }));
 
       // 세션별 플레이그라운드 설정 가져오기
-      const playgroundMainPromptContent = currentSession?.playgroundMainPromptContent;
-      const playgroundKnowledgeBaseSnapshot = currentSession?.playgroundKnowledgeBaseSnapshot;
+      const playgroundMainPromptContent = sessionForHistory?.playgroundMainPromptContent;
+      const playgroundKnowledgeBaseSnapshot = sessionForHistory?.playgroundKnowledgeBaseSnapshot;
 
       let assistantContent = '';
 
