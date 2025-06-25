@@ -202,3 +202,125 @@ export const generateStreamingResponse = async (
     callback.onError(error instanceof Error ? error : new Error('Failed to get streaming response from Claude Sonnet 4 API'));
   }
 };
+
+// 전역 프롬프트 관리 API 함수들
+export const fetchGlobalPromptAndKnowledgeBase = async () => {
+  try {
+    const [mainPromptResult, knowledgeBaseResult] = await Promise.all([
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.main_prompt&name=eq.main_prompt&select=content`, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+      }),
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.knowledge_base&select=id,name,content,order_index&order=order_index.asc`, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+      })
+    ]);
+
+    if (!mainPromptResult.ok || !knowledgeBaseResult.ok) {
+      throw new Error('Failed to fetch global prompt data');
+    }
+
+    const mainPromptData = await mainPromptResult.json();
+    const knowledgeBaseData = await knowledgeBaseResult.json();
+
+    return {
+      mainPrompt: mainPromptData[0]?.content || '',
+      knowledgeBase: knowledgeBaseData || []
+    };
+  } catch (error) {
+    console.error('Error fetching global prompt data:', error);
+    throw error;
+  }
+};
+
+export const updateGlobalPromptAndKnowledgeBase = async (
+  mainPromptContent: string,
+  knowledgeBaseItems: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>
+) => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-global-prompt`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        mainPromptContent,
+        knowledgeBaseItems
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Update failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating global prompt:', error);
+    throw error;
+  }
+};
+
+export const saveDeploymentSnapshot = async (deploymentNotes?: string) => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-deployment-snapshot`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        deploymentNotes
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Snapshot save failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error saving deployment snapshot:', error);
+    throw error;
+  }
+};
+
+export const fetchDeploymentHistory = async () => {
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-deployment-history`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`History fetch failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching deployment history:', error);
+    throw error;
+  }
+};
