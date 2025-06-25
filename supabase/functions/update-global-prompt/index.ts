@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
 
     // 트랜잭션으로 처리
     try {
-      // 1. 메인 프롬프트 업데이트
+      // 1. 메인 프롬프트 업데이트 (upsert with proper conflict resolution)
       const { error: mainPromptError } = await supabase
         .from('prompts_and_knowledge_base')
         .upsert({
@@ -150,6 +150,8 @@ Deno.serve(async (req: Request) => {
           type: 'main_prompt',
           order_index: 0,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'name'
         });
 
       if (mainPromptError) {
@@ -180,7 +182,9 @@ Deno.serve(async (req: Request) => {
 
         const { error: insertError } = await supabase
           .from('prompts_and_knowledge_base')
-          .insert(knowledgeBaseRecords);
+          .upsert(knowledgeBaseRecords, {
+            onConflict: 'name'
+          });
 
         if (insertError) {
           throw new Error(`Failed to insert knowledge base items: ${insertError.message}`);
