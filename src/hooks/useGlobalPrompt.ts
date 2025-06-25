@@ -27,7 +27,9 @@ interface DeploymentHistoryItem {
 
 export const useGlobalPrompt = () => {
   const { session } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { role } = useUserRole(); // role을 가져와서 admin 여부 확인
+  const isAdmin = role === 'admin'; // role이 'admin'인지 확인
+  
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistoryItem[]>([]);
