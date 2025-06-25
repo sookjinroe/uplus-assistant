@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { ChatHistory } from './components/ChatHistory';
 import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
+import { AdminSettings } from './components/AdminSettings';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User } from 'lucide-react';
+import { useUserRole } from './hooks/useUserRole';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings, Shield } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -17,9 +19,11 @@ const getDisplayTitle = (title: string, maxLength: number = 40): string => {
 
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { role, loading: roleLoading } = useUserRole(user);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
   
   const {
     sessions,
@@ -36,8 +40,8 @@ function App() {
     stopGenerating,
   } = useChat(user);
 
-  // Show loading spinner while checking auth state
-  if (authLoading) {
+  // Show loading spinner while checking auth state or user role
+  if (authLoading || roleLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -116,7 +120,14 @@ function App() {
           {/* Header with service name and user info */}
           <div className="p-4 pb-3 border-b border-slate-200">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
+                {role === 'admin' && (
+                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                    ADMIN
+                  </span>
+                )}
+              </div>
               
               {/* User Menu */}
               <Dropdown
@@ -131,7 +142,21 @@ function App() {
                   <p className="text-sm font-medium text-slate-800 truncate">
                     {user.email}
                   </p>
+                  {role === 'admin' && (
+                    <p className="text-xs text-red-600 font-medium">관리자</p>
+                  )}
                 </div>
+                {role === 'admin' && (
+                  <DropdownItem
+                    onClick={() => setShowAdminSettings(true)}
+                    className="text-primary hover:bg-blue-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings size={14} />
+                      관리자 설정
+                    </div>
+                  </DropdownItem>
+                )}
                 <DropdownItem
                   onClick={handleSignOut}
                   className="text-red-600 hover:bg-red-50"
@@ -254,6 +279,11 @@ function App() {
           hasHeader={isCurrentSessionInList}
         />
       </div>
+
+      {/* Admin Settings Modal */}
+      {showAdminSettings && role === 'admin' && (
+        <AdminSettings onClose={() => setShowAdminSettings(false)} />
+      )}
     </div>
   );
 }
