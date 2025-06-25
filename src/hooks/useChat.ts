@@ -402,7 +402,7 @@ export const useChat = (user: User | null) => {
           .upsert({
             id: sessionId,
             user_id: user.id,
-            title: isNewSession ? 'System Prompt Debug' : undefined, // 기존 세션이면 제목 업데이트 안함
+            title: isNewSession ? 'System Prompt Debug' : currentSession?.title || 'System Prompt Debug',
           });
 
         if (sessionError) throw sessionError;
@@ -522,16 +522,12 @@ export const useChat = (user: User | null) => {
       const currentSession = state.sessions.find(s => s.id === sessionId);
       const isNewSession = !currentSession || currentSession.messages.length === 0;
 
-      // 세션을 데이터베이스에 저장 (제목은 새 세션일 때만 설정)
+      // 세션을 데이터베이스에 저장 - 항상 title을 포함
       const sessionData: any = {
         id: sessionId,
         user_id: user.id,
+        title: isNewSession ? createTitleFromMessage(content) : (currentSession?.title || createTitleFromMessage(content)),
       };
-
-      // 새 세션인 경우에만 제목 설정
-      if (isNewSession) {
-        sessionData.title = createTitleFromMessage(content);
-      }
 
       const { error: sessionError } = await supabase
         .from('chat_sessions')
