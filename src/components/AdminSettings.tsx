@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Database, Users, FileText, X, Upload, Trash2, Save, Camera, AlertTriangle, Clock, User } from 'lucide-react';
+import { Settings, Database, Users, FileText, X, Upload, Trash2, Rocket, AlertTriangle, Clock, User } from 'lucide-react';
 import { useGlobalPrompt } from '../hooks/useGlobalPrompt';
 
 interface AdminSettingsProps {
@@ -9,15 +9,14 @@ interface AdminSettingsProps {
 export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'prompts' | 'system'>('prompts');
   const [deploymentNotes, setDeploymentNotes] = useState('');
-  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [showDeployModal, setShowDeployModal] = useState(false);
 
   const {
     mainPrompt,
     knowledgeBase,
     deploymentHistory,
     loading,
-    saving,
-    snapshotSaving,
+    deploying,
     error,
     hasChanges,
     loadGlobalData,
@@ -25,8 +24,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
     updateMainPrompt,
     addKnowledgeBaseItem,
     removeKnowledgeBaseItem,
-    saveGlobalPrompt,
-    saveSnapshot,
+    deployGlobalPrompt,
     resetChanges,
     clearError,
   } = useGlobalPrompt();
@@ -59,19 +57,11 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
     event.target.value = '';
   };
 
-  const handleSaveGlobalPrompt = async () => {
+  const handleDeploy = async () => {
     try {
-      await saveGlobalPrompt();
-    } catch (error) {
-      // 에러는 useGlobalPrompt에서 처리됨
-    }
-  };
-
-  const handleSaveSnapshot = async () => {
-    try {
-      await saveSnapshot(deploymentNotes.trim() || undefined);
+      await deployGlobalPrompt(deploymentNotes.trim() || undefined);
       setDeploymentNotes('');
-      setShowSnapshotModal(false);
+      setShowDeployModal(false);
     } catch (error) {
       // 에러는 useGlobalPrompt에서 처리됨
     }
@@ -168,12 +158,12 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                     </span>
                   )}
                   <button
-                    onClick={() => setShowSnapshotModal(true)}
-                    disabled={snapshotSaving}
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    onClick={() => setShowDeployModal(true)}
+                    disabled={deploying || !hasChanges}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Camera size={16} />
-                    {snapshotSaving ? '저장 중...' : '배포 스냅샷'}
+                    <Rocket size={16} />
+                    {deploying ? '배포 중...' : '전역 프롬프트 배포'}
                   </button>
                 </div>
               </div>
@@ -258,39 +248,22 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                     </div>
                   </div>
 
-                  {/* Save Actions */}
+                  {/* Changes Notice */}
                   {hasChanges && (
                     <div className="flex gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-yellow-800">변경사항이 있습니다</p>
                         <p className="text-xs text-yellow-600 mt-1">
-                          전역 프롬프트를 저장하면 모든 새로운 채팅에 적용됩니다.
+                          배포하면 모든 새로운 채팅에 적용됩니다.
                         </p>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={resetChanges}
-                          disabled={saving}
+                          disabled={deploying}
                           className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                         >
                           취소
-                        </button>
-                        <button
-                          onClick={handleSaveGlobalPrompt}
-                          disabled={saving}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                        >
-                          {saving ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              저장 중...
-                            </>
-                          ) : (
-                            <>
-                              <Save size={14} />
-                              전역 프롬프트 저장
-                            </>
-                          )}
                         </button>
                       </div>
                     </div>
@@ -313,7 +286,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <Clock size={14} className="text-gray-500" />
+                                <Rocket size={14} className="text-green-600" />
                                 <span className="text-sm font-medium text-gray-700">
                                   {formatDate(deployment.deployedAt)}
                                 </span>
@@ -357,15 +330,15 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
         </div>
       </div>
 
-      {/* Deployment Snapshot Modal */}
-      {showSnapshotModal && (
+      {/* Deploy Modal */}
+      {showDeployModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">배포 스냅샷 저장</h3>
+              <h3 className="text-lg font-semibold mb-4">전역 프롬프트 배포</h3>
               <p className="text-sm text-gray-600 mb-4">
-                현재 전역 프롬프트와 지식 기반의 스냅샷을 저장합니다. 
-                이는 배포 시점의 설정을 기록하는 용도입니다.
+                변경된 전역 프롬프트와 지식 기반을 배포합니다. 
+                배포 후 모든 새로운 채팅에 적용되며, 배포 이력이 자동으로 기록됩니다.
               </p>
               
               <div className="mb-4">
@@ -383,28 +356,28 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose }) => {
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    setShowSnapshotModal(false);
+                    setShowDeployModal(false);
                     setDeploymentNotes('');
                   }}
-                  disabled={snapshotSaving}
+                  disabled={deploying}
                   className="flex-1 px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   취소
                 </button>
                 <button
-                  onClick={handleSaveSnapshot}
-                  disabled={snapshotSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  onClick={handleDeploy}
+                  disabled={deploying}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
-                  {snapshotSaving ? (
+                  {deploying ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      저장 중...
+                      배포 중...
                     </>
                   ) : (
                     <>
-                      <Camera size={16} />
-                      스냅샷 저장
+                      <Rocket size={16} />
+                      배포하기
                     </>
                   )}
                 </button>

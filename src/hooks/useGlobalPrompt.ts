@@ -30,8 +30,7 @@ export const useGlobalPrompt = () => {
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [snapshotSaving, setSnapshotSaving] = useState(false);
+  const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -87,44 +86,31 @@ export const useGlobalPrompt = () => {
     setHasChanges(true);
   }, []);
 
-  // 전역 프롬프트 저장
-  const saveGlobalPrompt = useCallback(async () => {
+  // 전역 프롬프트 배포 (저장 + 배포 이력 기록을 한 번에)
+  const deployGlobalPrompt = useCallback(async (deploymentNotes?: string) => {
     if (!hasChanges) return;
     
-    setSaving(true);
+    setDeploying(true);
     setError(null);
     
     try {
+      // 1. 전역 프롬프트 저장
       await updateGlobalPromptAndKnowledgeBase(mainPrompt, knowledgeBase, session?.access_token);
-      setHasChanges(false);
       
-      // 저장 후 배포 이력 새로고침
-      await loadDeploymentHistory();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory]);
-
-  // 배포 스냅샷 저장
-  const saveSnapshot = useCallback(async (deploymentNotes?: string) => {
-    setSnapshotSaving(true);
-    setError(null);
-    
-    try {
+      // 2. 배포 이력 기록
       await saveDeploymentSnapshot(deploymentNotes, session?.access_token);
       
-      // 스냅샷 저장 후 배포 이력 새로고침
+      setHasChanges(false);
+      
+      // 3. 배포 이력 새로고침
       await loadDeploymentHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '스냅샷 저장 중 오류가 발생했습니다.');
+      setError(err instanceof Error ? err.message : '배포 중 오류가 발생했습니다.');
       throw err;
     } finally {
-      setSnapshotSaving(false);
+      setDeploying(false);
     }
-  }, [session?.access_token, loadDeploymentHistory]);
+  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory]);
 
   // 변경사항 초기화
   const resetChanges = useCallback(() => {
@@ -142,8 +128,7 @@ export const useGlobalPrompt = () => {
     knowledgeBase,
     deploymentHistory,
     loading,
-    saving,
-    snapshotSaving,
+    deploying,
     error,
     hasChanges,
     
@@ -153,8 +138,7 @@ export const useGlobalPrompt = () => {
     updateMainPrompt,
     addKnowledgeBaseItem,
     removeKnowledgeBaseItem,
-    saveGlobalPrompt,
-    saveSnapshot,
+    deployGlobalPrompt,
     resetChanges,
     clearError,
   };
