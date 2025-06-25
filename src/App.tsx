@@ -320,6 +320,8 @@ function App() {
         <PlaygroundPanel 
           isOpen={playgroundOpen}
           onClose={() => setPlaygroundOpen(false)}
+          currentSession={currentSession}
+          user={user}
         />
       </div>
 

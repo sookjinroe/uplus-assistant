@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Trash2, FileText, Zap } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
 import { useChat } from '../hooks/useChat';
+import { ChatSession, KnowledgeBaseItem } from '../types/chat';
 
 interface PlaygroundPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  currentSession?: ChatSession;
+  user: User | null;
 }
 
-interface KnowledgeBaseItem {
-  id: string;
-  name: string;
-  content: string;
-  order_index: number;
-}
-
-export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClose }) => {
+export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ 
+  isOpen, 
+  onClose, 
+  currentSession,
+  user 
+}) => {
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,21 +25,39 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
   const [hasChanges, setHasChanges] = useState(false);
   const [applying, setApplying] = useState(false);
 
-  const { applyPlaygroundChanges } = useChat(null);
+  const { applyPlaygroundChanges } = useChat(user);
 
-  // 초기 데이터 로드
+  // 데이터 로드 (세션 변경 시에도 반응)
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, currentSession?.id]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('🔄 플레이그라운드 데이터 로딩 시작...');
+      console.log('🔄 플레이그라운드 데이터 로딩 시작...', {
+        sessionId: currentSession?.id,
+        hasPlaygroundData: !!(currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot)
+      });
+      
+      // 현재 세션에 플레이그라운드 데이터가 있는지 확인
+      if (currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot) {
+        console.log('🎮 세션별 플레이그라운드 데이터 로드');
+        
+        setMainPrompt(currentSession.playgroundMainPromptContent || '');
+        setKnowledgeBase(currentSession.playgroundKnowledgeBaseSnapshot || []);
+        setHasChanges(false);
+        
+        console.log('✅ 세션별 플레이그라운드 데이터 로딩 완료');
+        return;
+      }
+
+      // 세션에 플레이그라운드 데이터가 없으면 기본 데이터 로드
+      console.log('📋 기본 프롬프트 및 지식 기반 데이터 로드');
       
       // 메인 프롬프트 가져오기
       const { data: mainPromptData, error: mainPromptError } = await supabase
@@ -76,7 +96,7 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
       setKnowledgeBase(knowledgeData || []);
       setHasChanges(false);
       
-      console.log('✅ 플레이그라운드 데이터 로딩 완료');
+      console.log('✅ 기본 플레이그라운드 데이터 로딩 완료');
     } catch (err) {
       console.error('❌ 데이터 로딩 오류:', err);
       setError(err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.');
@@ -158,6 +178,11 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
               수정됨
             </span>
           )}
+          {currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot ? (
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+              세션별
+            </span>
+          ) : null}
         </div>
         <button
           onClick={onClose}
