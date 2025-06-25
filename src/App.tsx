@@ -4,7 +4,7 @@ import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
 import { useChat } from './hooks/useChat';
 import { useAuth } from './hooks/useAuth';
-import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User, Settings } from 'lucide-react';
+import { Menu, X, ChevronDown, Edit2, Trash2, LogOut, User } from 'lucide-react';
 import { Dropdown, DropdownItem } from './components/Dropdown';
 
 // 타이틀 표시용 함수 (화면 표시시 말줄임표 추가)
@@ -16,7 +16,7 @@ const getDisplayTitle = (title: string, maxLength: number = 40): string => {
 };
 
 function App() {
-  const { user, userRole, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -95,11 +95,6 @@ function App() {
     }
   };
 
-  const handleSettings = () => {
-    console.log('Settings clicked - Admin panel will be implemented here');
-    // TODO: 관리자 설정 패널 구현
-  };
-
   // 현재 세션이 sessions 배열에 있는지 확인 (빈 세션이 아닌지)
   const isCurrentSessionInList = currentSession && sessions.some(s => s.id === currentSession.id);
 
@@ -121,14 +116,7 @@ function App() {
           {/* Header with service name and user info */}
           <div className="p-4 pb-3 border-b border-slate-200">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
-                {userRole === 'admin' && (
-                  <span className="px-2 py-1 text-xs font-medium bg-primary text-white rounded-full">
-                    Admin
-                  </span>
-                )}
-              </div>
+              <h1 className="text-xl font-bold text-slate-800">U+ Assistant</h1>
               
               {/* User Menu */}
               <Dropdown
@@ -143,20 +131,7 @@ function App() {
                   <p className="text-sm font-medium text-slate-800 truncate">
                     {user.email}
                   </p>
-                  {userRole && (
-                    <p className="text-xs text-slate-500 capitalize">
-                      {userRole}
-                    </p>
-                  )}
                 </div>
-                {userRole === 'admin' && (
-                  <DropdownItem onClick={handleSettings}>
-                    <div className="flex items-center gap-2">
-                      <Settings size={14} />
-                      설정
-                    </div>
-                  </DropdownItem>
-                )}
                 <DropdownItem
                   onClick={handleSignOut}
                   className="text-red-600 hover:bg-red-50"
