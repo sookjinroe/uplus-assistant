@@ -86,6 +86,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
       
       if (error.message?.includes('Invalid login credentials')) {
         errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = '이메일이 확인되지 않았습니다. 받은 편지함을 확인하여 이메일 주소를 확인해주세요.';
       } else if (error.message?.includes('User already registered')) {
         errorMessage = '이미 가입된 이메일입니다.';
       } else if (error.message?.includes('Password should be at least 6 characters')) {
