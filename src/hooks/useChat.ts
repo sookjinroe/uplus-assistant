@@ -83,7 +83,21 @@ export const useChat = (user: User | null) => {
         })
       );
 
-      setState(prev => ({ ...prev, sessions: sessionsWithMessages }));
+      // 마지막 메시지 시간 기준으로 정렬
+      const sortedSessions = sessionsWithMessages.sort((a, b) => {
+        // 각 세션의 마지막 메시지 시간 가져오기
+        const lastMessageA = a.messages.length > 0 
+          ? a.messages[a.messages.length - 1].timestamp 
+          : a.createdAt;
+        const lastMessageB = b.messages.length > 0 
+          ? b.messages[b.messages.length - 1].timestamp 
+          : b.createdAt;
+        
+        // 최신순 정렬 (내림차순)
+        return lastMessageB.getTime() - lastMessageA.getTime();
+      });
+
+      setState(prev => ({ ...prev, sessions: sortedSessions }));
     } catch (error) {
       console.error('Error loading user sessions:', error);
       setState(prev => ({ 
@@ -433,10 +447,9 @@ export const useChat = (user: User | null) => {
 
         if (assistantMsgError) throw assistantMsgError;
 
-        // UI 업데이트
-        setState(prev => ({
-          ...prev,
-          sessions: prev.sessions.map(session =>
+        // UI 업데이트 및 세션 재정렬
+        setState(prev => {
+          const updatedSessions = prev.sessions.map(session =>
             session.id === sessionId
               ? {
                   ...session,
@@ -448,10 +461,27 @@ export const useChat = (user: User | null) => {
                   updatedAt: new Date(),
                 }
               : session
-          ),
-          isLoading: sessionId === prev.currentSessionId ? false : prev.isLoading,
-          isStreamingContent: false,
-        }));
+          );
+
+          // 마지막 메시지 시간 기준으로 재정렬
+          const sortedSessions = updatedSessions.sort((a, b) => {
+            const lastMessageA = a.messages.length > 0 
+              ? a.messages[a.messages.length - 1].timestamp 
+              : a.createdAt;
+            const lastMessageB = b.messages.length > 0 
+              ? b.messages[b.messages.length - 1].timestamp 
+              : b.createdAt;
+            
+            return lastMessageB.getTime() - lastMessageA.getTime();
+          });
+
+          return {
+            ...prev,
+            sessions: sortedSessions,
+            isLoading: sessionId === prev.currentSessionId ? false : prev.isLoading,
+            isStreamingContent: false,
+          };
+        });
       } catch (error) {
         console.error('Error saving system prompt debug:', error);
         setState(prev => ({
@@ -604,11 +634,33 @@ export const useChat = (user: User | null) => {
             console.error('Error saving assistant message:', error);
           }
           
-          setState(prev => ({
-            ...prev,
-            isLoading: sessionId === prev.currentSessionId ? false : prev.isLoading,
-            isStreamingContent: sessionId === prev.currentSessionId ? false : prev.isStreamingContent,
-          }));
+          // 세션 완료 후 재정렬
+          setState(prev => {
+            const updatedSessions = prev.sessions.map(session =>
+              session.id === sessionId
+                ? { ...session, updatedAt: new Date() }
+                : session
+            );
+
+            // 마지막 메시지 시간 기준으로 재정렬
+            const sortedSessions = updatedSessions.sort((a, b) => {
+              const lastMessageA = a.messages.length > 0 
+                ? a.messages[a.messages.length - 1].timestamp 
+                : a.createdAt;
+              const lastMessageB = b.messages.length > 0 
+                ? b.messages[b.messages.length - 1].timestamp 
+                : b.createdAt;
+              
+              return lastMessageB.getTime() - lastMessageA.getTime();
+            });
+
+            return {
+              ...prev,
+              sessions: sortedSessions,
+              isLoading: sessionId === prev.currentSessionId ? false : prev.isLoading,
+              isStreamingContent: sessionId === prev.currentSessionId ? false : prev.isStreamingContent,
+            };
+          });
         },
         onError: (error: Error) => {
           activeRequests.delete(requestId);
