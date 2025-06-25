@@ -8,6 +8,7 @@ interface ClaudeRequest {
   messages: Array<{role: 'user' | 'assistant', content: string}>;
   apiKey: string;
   stream?: boolean;
+  customSystemPrompt?: string;
 }
 
 // 시스템 프롬프트 캐시 관련 변수들
@@ -140,7 +141,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { messages, apiKey, stream = false }: ClaudeRequest = await req.json();
+    const { messages, apiKey, stream = false, customSystemPrompt }: ClaudeRequest = await req.json();
 
     if (!apiKey) {
       return new Response(
@@ -168,8 +169,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 시스템 프롬프트를 직접 구성 (네트워크 호출 제거로 지연 시간 단축)
-    const systemPrompt = await buildSystemPromptDirect();
+    // 시스템 프롬프트 결정: customSystemPrompt가 있으면 사용, 없으면 기본 시스템 프롬프트 구성
+    let systemPrompt: string;
+    
+    if (customSystemPrompt) {
+      console.log('🎮 커스텀 시스템 프롬프트 사용:', {
+        customPromptLength: customSystemPrompt.length
+      });
+      systemPrompt = customSystemPrompt;
+    } else {
+      console.log('📋 기본 시스템 프롬프트 구성');
+      systemPrompt = await buildSystemPromptDirect();
+    }
 
     // Claude의 200K 토큰 컨텍스트 윈도우를 활용하여 더 많은 메시지 히스토리 유지
     const recentMessages = messages.slice(-100);
@@ -185,7 +196,7 @@ Deno.serve(async (req: Request) => {
       max_tokens: 8192,
       temperature: 0.7,
       messages: finalMessages,
-      system: systemPrompt, // 캐시된 시스템 프롬프트 사용
+      system: systemPrompt,
       stream: stream,
     };
 
@@ -196,7 +207,7 @@ Deno.serve(async (req: Request) => {
       systemPromptLength: systemPrompt.length,
       maxTokens: requestBody.max_tokens,
       streaming: stream,
-      cacheHit: isCacheValid()
+      isCustomPrompt: !!customSystemPrompt
     });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {

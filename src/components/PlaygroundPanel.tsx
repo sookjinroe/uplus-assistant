@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, FileText, Save } from 'lucide-react';
+import { X, Upload, Trash2, FileText, Zap } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+import { useChat } from '../hooks/useChat';
 
 interface PlaygroundPanelProps {
   isOpen: boolean;
@@ -20,6 +21,9 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const { applyPlaygroundChanges } = useChat(null);
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -118,6 +122,27 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
 
   const resetChanges = () => {
     loadData();
+  };
+
+  const handleApplyChanges = async () => {
+    if (!applyPlaygroundChanges) {
+      setError('플레이그라운드 변경사항을 적용할 수 없습니다. 활성 세션이 필요합니다.');
+      return;
+    }
+
+    setApplying(true);
+    setError(null);
+
+    try {
+      await applyPlaygroundChanges(mainPrompt, knowledgeBase);
+      setHasChanges(false);
+      console.log('✅ 플레이그라운드 변경사항 적용 완료');
+    } catch (error) {
+      console.error('❌ 플레이그라운드 변경사항 적용 실패:', error);
+      setError(error instanceof Error ? error.message : '변경사항 적용 중 오류가 발생했습니다.');
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
@@ -248,21 +273,31 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
             <div className="flex gap-2">
               <button
                 onClick={resetChanges}
-                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                disabled={applying}
+                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 초기화
               </button>
               <button
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-                disabled
-                title="테스트 환경에서는 저장되지 않습니다"
+                onClick={handleApplyChanges}
+                disabled={applying}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save size={14} />
-                저장
+                {applying ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    적용 중...
+                  </>
+                ) : (
+                  <>
+                    <Zap size={14} />
+                    적용
+                  </>
+                )}
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2 text-center">
-              * 수정사항은 브라우저 세션 동안만 유지됩니다
+              * 현재 세션에만 적용되며, 원본 데이터는 변경되지 않습니다
             </p>
           </div>
         )}
