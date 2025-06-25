@@ -63,7 +63,7 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-scroll">
       {sessions.length === 0 ? (
         <div className="p-4 text-center text-slate-500">
           <MessageSquare size={48} className="mx-auto mb-2 opacity-50" />
