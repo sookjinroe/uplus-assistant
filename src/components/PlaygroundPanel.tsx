@@ -1,63 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, FileText, Zap } from 'lucide-react';
-import { User } from '@supabase/supabase-js';
+import { X, Upload, Trash2, FileText, Save } from 'lucide-react';
 import { supabase } from '../utils/supabase';
-import { useChat } from '../hooks/useChat';
-import { ChatSession, KnowledgeBaseItem } from '../types/chat';
 
 interface PlaygroundPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  currentSession?: ChatSession;
-  user: User | null;
 }
 
-export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ 
-  isOpen, 
-  onClose, 
-  currentSession,
-  user 
-}) => {
+interface KnowledgeBaseItem {
+  id: string;
+  name: string;
+  content: string;
+  order_index: number;
+}
+
+export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClose }) => {
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [applying, setApplying] = useState(false);
 
-  const { applyPlaygroundChanges } = useChat(user);
-
-  // 데이터 로드 (세션 변경 시에도 반응) - currentSession 전체 객체를 의존성으로 사용
+  // 초기 데이터 로드
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen, currentSession]);
+  }, [isOpen]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('🔄 플레이그라운드 데이터 로딩 시작...', {
-        sessionId: currentSession?.id,
-        hasPlaygroundData: !!(currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot)
-      });
-      
-      // 현재 세션에 플레이그라운드 데이터가 있는지 확인
-      if (currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot) {
-        console.log('🎮 세션별 플레이그라운드 데이터 로드');
-        
-        setMainPrompt(currentSession.playgroundMainPromptContent || '');
-        setKnowledgeBase(currentSession.playgroundKnowledgeBaseSnapshot || []);
-        setHasChanges(false);
-        
-        console.log('✅ 세션별 플레이그라운드 데이터 로딩 완료');
-        return;
-      }
-
-      // 세션에 플레이그라운드 데이터가 없으면 기본 데이터 로드
-      console.log('📋 기본 프롬프트 및 지식 기반 데이터 로드');
+      console.log('🔄 플레이그라운드 데이터 로딩 시작...');
       
       // 메인 프롬프트 가져오기
       const { data: mainPromptData, error: mainPromptError } = await supabase
@@ -96,7 +72,7 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
       setKnowledgeBase(knowledgeData || []);
       setHasChanges(false);
       
-      console.log('✅ 기본 플레이그라운드 데이터 로딩 완료');
+      console.log('✅ 플레이그라운드 데이터 로딩 완료');
     } catch (err) {
       console.error('❌ 데이터 로딩 오류:', err);
       setError(err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.');
@@ -144,27 +120,6 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
     loadData();
   };
 
-  const handleApplyChanges = async () => {
-    if (!applyPlaygroundChanges) {
-      setError('플레이그라운드 변경사항을 적용할 수 없습니다. 활성 세션이 필요합니다.');
-      return;
-    }
-
-    setApplying(true);
-    setError(null);
-
-    try {
-      await applyPlaygroundChanges(mainPrompt, knowledgeBase);
-      setHasChanges(false);
-      console.log('✅ 플레이그라운드 변경사항 적용 완료');
-    } catch (error) {
-      console.error('❌ 플레이그라운드 변경사항 적용 실패:', error);
-      setError(error instanceof Error ? error.message : '변경사항 적용 중 오류가 발생했습니다.');
-    } finally {
-      setApplying(false);
-    }
-  };
-
   return (
     <div className={`fixed top-0 right-0 h-full bg-white border-l border-slate-200 shadow-lg z-40 transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : 'translate-x-full'
@@ -178,11 +133,6 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
               수정됨
             </span>
           )}
-          {currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot ? (
-            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-              세션별
-            </span>
-          ) : null}
         </div>
         <button
           onClick={onClose}
@@ -298,31 +248,21 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={resetChanges}
-                disabled={applying}
-                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
               >
                 초기화
               </button>
               <button
-                onClick={handleApplyChanges}
-                disabled={applying}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+                disabled
+                title="테스트 환경에서는 저장되지 않습니다"
               >
-                {applying ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    적용 중...
-                  </>
-                ) : (
-                  <>
-                    <Zap size={14} />
-                    적용
-                  </>
-                )}
+                <Save size={14} />
+                저장
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2 text-center">
-              * 현재 세션에만 적용되며, 원본 데이터는 변경되지 않습니다
+              * 수정사항은 브라우저 세션 동안만 유지됩니다
             </p>
           </div>
         )}

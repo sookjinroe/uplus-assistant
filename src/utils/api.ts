@@ -85,12 +85,11 @@ const isAbortError = (error: any): boolean => {
   );
 };
 
-// 스트리밍 응답을 위한 함수 (AbortSignal 지원 및 custom system prompt)
+// 스트리밍 응답을 위한 함수 (AbortSignal 지원)
 export const generateStreamingResponse = async (
   messages: Array<{role: 'user' | 'assistant', content: string}>,
   callback: StreamCallback,
-  signal?: AbortSignal,
-  customSystemPrompt?: string
+  signal?: AbortSignal
 ): Promise<void> => {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY;
 
@@ -106,13 +105,10 @@ export const generateStreamingResponse = async (
       messages,
       apiKey,
       stream: true,
-      customSystemPrompt, // Pass custom system prompt if provided
     };
 
     console.log('Claude Sonnet 4 Streaming Request:', {
-      messageCount: messages.length,
-      hasCustomSystemPrompt: !!customSystemPrompt,
-      customSystemPromptLength: customSystemPrompt?.length || 0
+      messageCount: messages.length
     });
     
     const response = await fetch(apiUrl, {
