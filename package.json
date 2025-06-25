@@ -1,13 +1,11 @@
 {
-  "name": "uplus-assistant",
+  "name": "vite-react-typescript-starter",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --mode development",
-    "dev:prod": "vite --mode production",
-    "build": "vite build --mode production",
-    "build:dev": "vite build --mode development",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
