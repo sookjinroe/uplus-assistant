@@ -40,9 +40,5 @@ export const useUserRole = (user: User | null) => {
     fetchUserRole();
   }, [user]);
 
-  return { 
-    role, 
-    loading,
-    isAdmin: role === 'admin' // isAdmin 속성 추가
-  };
+  return { role, loading };
 };
