@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Message, ChatSession, ChatState, DbChatSession, DbChatMessage } from '../types/chat';
-import { generateStreamingResponse, fetchSystemPrompt } from '../utils/api';
+import { generateStreamingResponse } from '../utils/api';
 import { supabase } from '../utils/supabase';
 
 // 타이틀 생성 함수 (저장용 - 말줄임표 없음)
@@ -30,17 +30,6 @@ export const useChat = (user: User | null) => {
     error: null,
   });
 
-  // 시스템 프롬프트 캐시 상태
-  const [systemPromptCache, setSystemPromptCache] = useState<{
-    prompt: string | null;
-    timestamp: number;
-    isLoading: boolean;
-  }>({
-    prompt: null,
-    timestamp: 0,
-    isLoading: false,
-  });
-
   // 현재 세션의 AbortController만 관리
   const currentAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -49,7 +38,7 @@ export const useChat = (user: User | null) => {
     if (!user) return;
 
     try {
-      // 세션 목록 가져오기
+      // 세션 목록 가져오기 (플레이그라운드 데이터 포함)
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('chat_sessions')
         .select('*')
@@ -88,6 +77,8 @@ export const useChat = (user: User | null) => {
             messages,
             createdAt: new Date(session.created_at),
             updatedAt: new Date(session.updated_at),
+            playgroundMainPromptContent: session.playground_main_prompt_content || undefined,
+            playgroundKnowledgeBaseSnapshot: session.playground_knowledge_base_snapshot || undefined,
           };
         })
       );
@@ -116,44 +107,6 @@ export const useChat = (user: User | null) => {
       });
     }
   }, [user, loadUserSessions]);
-
-  // 앱 초기화 시 시스템 프롬프트 미리 가져오기
-  useEffect(() => {
-    const preloadSystemPrompt = async () => {
-      if (systemPromptCache.isLoading || systemPromptCache.prompt) {
-        return;
-      }
-
-      console.log('🚀 앱 초기화: 시스템 프롬프트 미리 로딩 시작');
-      
-      setSystemPromptCache(prev => ({
-        ...prev,
-        isLoading: true,
-      }));
-
-      try {
-        const prompt = await fetchSystemPrompt();
-        setSystemPromptCache({
-          prompt,
-          timestamp: Date.now(),
-          isLoading: false,
-        });
-        console.log('✅ 시스템 프롬프트 미리 로딩 완료:', {
-          length: prompt.length,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        console.error('❌ 시스템 프롬프트 미리 로딩 실패:', error);
-        setSystemPromptCache(prev => ({
-          ...prev,
-          isLoading: false,
-        }));
-      }
-    };
-
-    const timeoutId = setTimeout(preloadSystemPrompt, 100);
-    return () => clearTimeout(timeoutId);
-  }, []);
 
   // Create a new chat session
   const createNewSession = useCallback(async () => {
@@ -189,6 +142,95 @@ export const useChat = (user: User | null) => {
 
     return undefined;
   }, [state.sessions, state.currentSessionId, user]);
+
+  // Apply playground changes to session
+  const applyPlaygroundChangesToSession = useCallback(async (
+    mainPromptContent: string,
+    knowledgeBaseSnapshot: Array<{
+      id: string;
+      name: string;
+      content: string;
+      order_index: number;
+    }>
+  ) => {
+    if (!user) return;
+
+    let sessionId = state.currentSessionId;
+    
+    try {
+      // 현재 세션이 없거나 임시 ID인 경우 새 세션 생성
+      if (!sessionId || !state.sessions.find(s => s.id === sessionId)) {
+        sessionId = crypto.randomUUID();
+        
+        const { error: sessionError } = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: sessionId,
+            user_id: user.id,
+            title: 'NEW CHAT',
+            playground_main_prompt_content: mainPromptContent,
+            playground_knowledge_base_snapshot: knowledgeBaseSnapshot,
+          });
+
+        if (sessionError) throw sessionError;
+
+        // 새 세션을 상태에 추가
+        const newSession: ChatSession = {
+          id: sessionId,
+          userId: user.id,
+          title: 'NEW CHAT',
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          playgroundMainPromptContent: mainPromptContent,
+          playgroundKnowledgeBaseSnapshot: knowledgeBaseSnapshot,
+        };
+
+        setState(prev => ({
+          ...prev,
+          sessions: [newSession, ...prev.sessions],
+          currentSessionId: sessionId,
+        }));
+      } else {
+        // 기존 세션 업데이트
+        const { error: updateError } = await supabase
+          .from('chat_sessions')
+          .update({
+            playground_main_prompt_content: mainPromptContent,
+            playground_knowledge_base_snapshot: knowledgeBaseSnapshot,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', sessionId)
+          .eq('user_id', user.id);
+
+        if (updateError) throw updateError;
+
+        // 상태 업데이트
+        setState(prev => ({
+          ...prev,
+          sessions: prev.sessions.map(session =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  playgroundMainPromptContent: mainPromptContent,
+                  playgroundKnowledgeBaseSnapshot: knowledgeBaseSnapshot,
+                  updatedAt: new Date(),
+                }
+              : session
+          ),
+        }));
+      }
+
+      console.log('✅ 플레이그라운드 설정이 세션에 적용되었습니다:', {
+        sessionId,
+        mainPromptLength: mainPromptContent.length,
+        knowledgeBaseItems: knowledgeBaseSnapshot.length
+      });
+    } catch (error) {
+      console.error('❌ 플레이그라운드 적용 실패:', error);
+      throw error;
+    }
+  }, [user, state.currentSessionId, state.sessions]);
 
   // Rename a session
   const renameSession = useCallback(async (sessionId: string, newTitle: string) => {
@@ -273,39 +315,6 @@ export const useChat = (user: User | null) => {
       error.message?.toLowerCase().includes('aborted')
     );
   };
-
-  // 캐시된 시스템 프롬프트 가져오기 함수
-  const getCachedSystemPrompt = useCallback(async (): Promise<string> => {
-    const CACHE_TTL = 5 * 60 * 1000; // 5분
-    const isCacheValid = systemPromptCache.prompt && 
-      (Date.now() - systemPromptCache.timestamp) < CACHE_TTL;
-
-    if (isCacheValid) {
-      console.log('💾 캐시된 시스템 프롬프트 사용:', {
-        cacheAge: Math.round((Date.now() - systemPromptCache.timestamp) / 1000),
-        promptLength: systemPromptCache.prompt!.length
-      });
-      return systemPromptCache.prompt!;
-    }
-
-    console.log('🔄 시스템 프롬프트 새로 가져오기 (캐시 만료 또는 없음)');
-    try {
-      const prompt = await fetchSystemPrompt();
-      setSystemPromptCache({
-        prompt,
-        timestamp: Date.now(),
-        isLoading: false,
-      });
-      return prompt;
-    } catch (error) {
-      console.error('시스템 프롬프트 가져오기 실패:', error);
-      if (systemPromptCache.prompt) {
-        console.log('⚠️ 만료된 캐시 사용 (fallback)');
-        return systemPromptCache.prompt;
-      }
-      throw error;
-    }
-  }, [systemPromptCache]);
 
   // Send a message with streaming
   const sendMessage = useCallback(async (content: string) => {
@@ -407,8 +416,7 @@ export const useChat = (user: User | null) => {
 
         if (userMsgError) throw userMsgError;
 
-        const systemPrompt = await getCachedSystemPrompt();
-        const systemPromptContent = `**현재 시스템 프롬프트:**\n\n\`\`\`\n${systemPrompt}\n\`\`\``;
+        const systemPromptContent = `**현재 시스템 프롬프트:**\n\n\`\`\`\n시스템 프롬프트는 이제 Edge Function에서 동적으로 구성됩니다.\n세션별 플레이그라운드 설정이 있으면 해당 설정을 사용하고,\n없으면 전역 데이터베이스 설정을 사용합니다.\n\`\`\``;
         
         // 어시스턴트 메시지 저장
         const { error: assistantMsgError } = await supabase
@@ -538,6 +546,10 @@ export const useChat = (user: User | null) => {
         content: msg.content
       }));
 
+      // 세션별 플레이그라운드 설정 가져오기
+      const playgroundMainPromptContent = currentSession?.playgroundMainPromptContent;
+      const playgroundKnowledgeBaseSnapshot = currentSession?.playgroundKnowledgeBaseSnapshot;
+
       let assistantContent = '';
 
       await generateStreamingResponse(apiMessages, {
@@ -616,7 +628,7 @@ export const useChat = (user: User | null) => {
             ),
           }));
         }
-      }, abortController.signal);
+      }, abortController.signal, playgroundMainPromptContent, playgroundKnowledgeBaseSnapshot);
     } catch (error) {
       activeRequests.delete(requestId);
       
@@ -646,7 +658,7 @@ export const useChat = (user: User | null) => {
         ),
       }));
     }
-  }, [state.currentSessionId, state.sessions, createNewSession, getCachedSystemPrompt, user]);
+  }, [state.currentSessionId, state.sessions, createNewSession, user]);
 
   // Switch to a different session
   const switchSession = useCallback((sessionId: string) => {
@@ -742,5 +754,6 @@ export const useChat = (user: User | null) => {
     renameSession,
     clearError,
     stopGenerating,
+    applyPlaygroundChangesToSession,
   };
 };

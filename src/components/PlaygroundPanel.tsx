@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, FileText, Save } from 'lucide-react';
+import { X, Upload, Trash2, FileText, Check } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+import { ChatSession } from '../types/chat';
 
 interface PlaygroundPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  currentSession: ChatSession | undefined;
+  onApply: (
+    mainPrompt: string, 
+    knowledgeBase: Array<{
+      id: string;
+      name: string;
+      content: string;
+      order_index: number;
+    }>
+  ) => Promise<void>;
 }
 
 interface KnowledgeBaseItem {
@@ -14,19 +25,26 @@ interface KnowledgeBaseItem {
   order_index: number;
 }
 
-export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClose }) => {
+export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ 
+  isOpen, 
+  onClose, 
+  currentSession,
+  onApply 
+}) => {
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSessionSpecific, setIsSessionSpecific] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
 
   // 초기 데이터 로드
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, currentSession]);
 
   const loadData = async () => {
     setLoading(true);
@@ -35,44 +53,64 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
     try {
       console.log('🔄 플레이그라운드 데이터 로딩 시작...');
       
-      // 메인 프롬프트 가져오기
-      const { data: mainPromptData, error: mainPromptError } = await supabase
-        .from('prompts_and_knowledge_base')
-        .select('content')
-        .eq('type', 'main_prompt')
-        .eq('name', 'main_prompt');
+      // 현재 세션에 플레이그라운드 스냅샷이 있는지 확인
+      if (currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot) {
+        console.log('📸 세션별 플레이그라운드 스냅샷 로드');
+        
+        // 세션별 스냅샷 데이터 사용
+        const sessionMainPrompt = currentSession.playgroundMainPromptContent || '';
+        const sessionKnowledgeBase = currentSession.playgroundKnowledgeBaseSnapshot || [];
+        
+        setMainPrompt(sessionMainPrompt);
+        setKnowledgeBase(sessionKnowledgeBase);
+        setIsSessionSpecific(true);
+        setHasChanges(false);
+        
+        console.log('✅ 세션별 플레이그라운드 데이터 로딩 완료:', {
+          mainPromptLength: sessionMainPrompt.length,
+          knowledgeBaseItems: sessionKnowledgeBase.length
+        });
+      } else {
+        console.log('🌐 전역 플레이그라운드 데이터 로드');
+        
+        // 전역 데이터베이스에서 로드
+        const [mainPromptResult, knowledgeBaseResult] = await Promise.all([
+          supabase
+            .from('prompts_and_knowledge_base')
+            .select('content')
+            .eq('type', 'main_prompt')
+            .eq('name', 'main_prompt'),
+          supabase
+            .from('prompts_and_knowledge_base')
+            .select('id, name, content, order_index')
+            .eq('type', 'knowledge_base')
+            .order('order_index', { ascending: true })
+        ]);
 
-      if (mainPromptError) {
-        console.error('❌ 메인 프롬프트 로드 실패:', mainPromptError);
-        throw new Error(`메인 프롬프트 로드 실패: ${mainPromptError.message}`);
+        if (mainPromptResult.error) {
+          console.error('❌ 메인 프롬프트 로드 실패:', mainPromptResult.error);
+          throw new Error(`메인 프롬프트 로드 실패: ${mainPromptResult.error.message}`);
+        }
+
+        if (knowledgeBaseResult.error) {
+          console.error('❌ 지식 기반 로드 실패:', knowledgeBaseResult.error);
+          throw new Error(`지식 기반 로드 실패: ${knowledgeBaseResult.error.message}`);
+        }
+
+        console.log('📝 메인 프롬프트 데이터:', mainPromptResult.data);
+        console.log('📚 지식 기반 데이터:', knowledgeBaseResult.data);
+
+        const mainPromptContent = mainPromptResult.data && mainPromptResult.data.length > 0 
+          ? mainPromptResult.data[0].content 
+          : '';
+
+        setMainPrompt(mainPromptContent);
+        setKnowledgeBase(knowledgeBaseResult.data || []);
+        setIsSessionSpecific(false);
+        setHasChanges(false);
+        
+        console.log('✅ 전역 플레이그라운드 데이터 로딩 완료');
       }
-
-      console.log('📝 메인 프롬프트 데이터:', mainPromptData);
-
-      // 메인 프롬프트가 없으면 빈 문자열로 초기화
-      const mainPromptContent = mainPromptData && mainPromptData.length > 0 
-        ? mainPromptData[0].content 
-        : '';
-
-      // 지식 기반 항목들 가져오기
-      const { data: knowledgeData, error: knowledgeError } = await supabase
-        .from('prompts_and_knowledge_base')
-        .select('id, name, content, order_index')
-        .eq('type', 'knowledge_base')
-        .order('order_index', { ascending: true });
-
-      if (knowledgeError) {
-        console.error('❌ 지식 기반 로드 실패:', knowledgeError);
-        throw new Error(`지식 기반 로드 실패: ${knowledgeError.message}`);
-      }
-
-      console.log('📚 지식 기반 데이터:', knowledgeData);
-
-      setMainPrompt(mainPromptContent);
-      setKnowledgeBase(knowledgeData || []);
-      setHasChanges(false);
-      
-      console.log('✅ 플레이그라운드 데이터 로딩 완료');
     } catch (err) {
       console.error('❌ 데이터 로딩 오류:', err);
       setError(err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.');
@@ -120,6 +158,22 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
     loadData();
   };
 
+  const handleApply = async () => {
+    if (!hasChanges) return;
+    
+    setIsApplying(true);
+    try {
+      await onApply(mainPrompt, knowledgeBase);
+      setHasChanges(false);
+      setIsSessionSpecific(true); // 적용 후에는 세션별 데이터가 됨
+    } catch (error) {
+      console.error('적용 중 오류:', error);
+      setError(error instanceof Error ? error.message : '적용 중 오류가 발생했습니다.');
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   return (
     <div className={`fixed top-0 right-0 h-full bg-white border-l border-slate-200 shadow-lg z-40 transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : 'translate-x-full'
@@ -128,6 +182,11 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
       <div className="flex items-center justify-between p-4 border-b border-slate-200">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-slate-800">PLAYGROUND</h2>
+          {isSessionSpecific && (
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+              세션별
+            </span>
+          )}
           {hasChanges && (
             <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
               수정됨
@@ -248,21 +307,31 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
             <div className="flex gap-2">
               <button
                 onClick={resetChanges}
-                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                disabled={isApplying}
+                className="flex-1 px-3 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
               >
                 초기화
               </button>
               <button
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-                disabled
-                title="테스트 환경에서는 저장되지 않습니다"
+                onClick={handleApply}
+                disabled={isApplying}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                <Save size={14} />
-                저장
+                {isApplying ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    적용 중...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    적용
+                  </>
+                )}
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2 text-center">
-              * 수정사항은 브라우저 세션 동안만 유지됩니다
+              * 적용하면 이 세션에서만 사용되는 프롬프트가 됩니다
             </p>
           </div>
         )}

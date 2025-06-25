@@ -12,6 +12,13 @@ export interface ChatSession {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  playgroundMainPromptContent?: string;
+  playgroundKnowledgeBaseSnapshot?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>;
 }
 
 export interface ChatState {
@@ -29,6 +36,8 @@ export interface DbChatSession {
   title: string;
   created_at: string;
   updated_at: string;
+  playground_main_prompt_content?: string;
+  playground_knowledge_base_snapshot?: any;
 }
 
 export interface DbChatMessage {

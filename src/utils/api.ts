@@ -85,11 +85,18 @@ const isAbortError = (error: any): boolean => {
   );
 };
 
-// 스트리밍 응답을 위한 함수 (AbortSignal 지원)
+// 스트리밍 응답을 위한 함수 (AbortSignal 지원 및 플레이그라운드 데이터 지원)
 export const generateStreamingResponse = async (
   messages: Array<{role: 'user' | 'assistant', content: string}>,
   callback: StreamCallback,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  playgroundMainPromptContent?: string,
+  playgroundKnowledgeBaseSnapshot?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    order_index: number;
+  }>
 ): Promise<void> => {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY;
 
@@ -105,10 +112,14 @@ export const generateStreamingResponse = async (
       messages,
       apiKey,
       stream: true,
+      playgroundMainPromptContent,
+      playgroundKnowledgeBaseSnapshot,
     };
 
     console.log('Claude Sonnet 4 Streaming Request:', {
-      messageCount: messages.length
+      messageCount: messages.length,
+      hasPlaygroundPrompt: !!playgroundMainPromptContent,
+      playgroundKnowledgeItems: playgroundKnowledgeBaseSnapshot?.length || 0
     });
     
     const response = await fetch(apiUrl, {
@@ -189,42 +200,5 @@ export const generateStreamingResponse = async (
     
     console.error('Claude Sonnet 4 Streaming Error:', error);
     callback.onError(error instanceof Error ? error : new Error('Failed to get streaming response from Claude Sonnet 4 API'));
-  }
-};
-
-// 시스템 프롬프트를 가져오는 함수
-export const fetchSystemPrompt = async (): Promise<string> => {
-  try {
-    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-system-prompt`;
-    
-    console.log('Fetching system prompt...');
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`System prompt request failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
-    }
-
-    const data = await response.json();
-    
-    console.log('System prompt fetched:', {
-      length: data.promptLength,
-      timestamp: data.timestamp
-    });
-    
-    return data.systemPrompt;
-  } catch (error) {
-    console.error('System Prompt Fetch Error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to fetch system prompt');
   }
 };
