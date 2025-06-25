@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from './useAuth';
 import {
   fetchGlobalPromptAndKnowledgeBase,
   updateGlobalPromptAndKnowledgeBase,
@@ -24,6 +25,7 @@ interface DeploymentHistoryItem {
 }
 
 export const useGlobalPrompt = () => {
+  const { session } = useAuth();
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistoryItem[]>([]);
@@ -39,7 +41,7 @@ export const useGlobalPrompt = () => {
     setError(null);
     
     try {
-      const data = await fetchGlobalPromptAndKnowledgeBase();
+      const data = await fetchGlobalPromptAndKnowledgeBase(session?.access_token);
       setMainPrompt(data.mainPrompt);
       setKnowledgeBase(data.knowledgeBase);
       setHasChanges(false);
@@ -48,18 +50,18 @@ export const useGlobalPrompt = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session?.access_token]);
 
   // 배포 이력 로드
   const loadDeploymentHistory = useCallback(async () => {
     try {
-      const data = await fetchDeploymentHistory();
+      const data = await fetchDeploymentHistory(session?.access_token);
       setDeploymentHistory(data.deploymentHistory || []);
     } catch (err) {
       console.error('Failed to load deployment history:', err);
       // 배포 이력 로드 실패는 전체 기능을 막지 않음
     }
-  }, []);
+  }, [session?.access_token]);
 
   // 메인 프롬프트 변경
   const updateMainPrompt = useCallback((content: string) => {
@@ -93,7 +95,7 @@ export const useGlobalPrompt = () => {
     setError(null);
     
     try {
-      await updateGlobalPromptAndKnowledgeBase(mainPrompt, knowledgeBase);
+      await updateGlobalPromptAndKnowledgeBase(mainPrompt, knowledgeBase, session?.access_token);
       setHasChanges(false);
       
       // 저장 후 배포 이력 새로고침
@@ -104,7 +106,7 @@ export const useGlobalPrompt = () => {
     } finally {
       setSaving(false);
     }
-  }, [mainPrompt, knowledgeBase, hasChanges, loadDeploymentHistory]);
+  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory]);
 
   // 배포 스냅샷 저장
   const saveSnapshot = useCallback(async (deploymentNotes?: string) => {
@@ -112,7 +114,7 @@ export const useGlobalPrompt = () => {
     setError(null);
     
     try {
-      await saveDeploymentSnapshot(deploymentNotes);
+      await saveDeploymentSnapshot(deploymentNotes, session?.access_token);
       
       // 스냅샷 저장 후 배포 이력 새로고침
       await loadDeploymentHistory();
@@ -122,7 +124,7 @@ export const useGlobalPrompt = () => {
     } finally {
       setSnapshotSaving(false);
     }
-  }, [loadDeploymentHistory]);
+  }, [session?.access_token, loadDeploymentHistory]);
 
   // 변경사항 초기화
   const resetChanges = useCallback(() => {

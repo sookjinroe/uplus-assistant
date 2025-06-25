@@ -204,19 +204,21 @@ export const generateStreamingResponse = async (
 };
 
 // 전역 프롬프트 관리 API 함수들
-export const fetchGlobalPromptAndKnowledgeBase = async () => {
+export const fetchGlobalPromptAndKnowledgeBase = async (accessToken?: string) => {
   try {
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+    
     const [mainPromptResult, knowledgeBaseResult] = await Promise.all([
       fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.main_prompt&name=eq.main_prompt&select=content`, {
         headers: {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': authHeader,
         },
       }),
       fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/prompts_and_knowledge_base?type=eq.knowledge_base&select=id,name,content,order_index&order=order_index.asc`, {
         headers: {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': authHeader,
         },
       })
     ]);
@@ -245,16 +247,18 @@ export const updateGlobalPromptAndKnowledgeBase = async (
     name: string;
     content: string;
     order_index: number;
-  }>
+  }>,
+  accessToken?: string
 ) => {
   try {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-global-prompt`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Authorization': authHeader,
       },
       body: JSON.stringify({
         mainPromptContent,
@@ -274,15 +278,16 @@ export const updateGlobalPromptAndKnowledgeBase = async (
   }
 };
 
-export const saveDeploymentSnapshot = async (deploymentNotes?: string) => {
+export const saveDeploymentSnapshot = async (deploymentNotes?: string, accessToken?: string) => {
   try {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-deployment-snapshot`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Authorization': authHeader,
       },
       body: JSON.stringify({
         deploymentNotes
@@ -301,15 +306,16 @@ export const saveDeploymentSnapshot = async (deploymentNotes?: string) => {
   }
 };
 
-export const fetchDeploymentHistory = async () => {
+export const fetchDeploymentHistory = async (accessToken?: string) => {
   try {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-deployment-history`;
+    const authHeader = accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Authorization': authHeader,
       },
     });
 
