@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { useUserRole } from './useUserRole';
 import {
   fetchGlobalPromptAndKnowledgeBase,
   updateGlobalPromptAndKnowledgeBase,
@@ -26,6 +27,7 @@ interface DeploymentHistoryItem {
 
 export const useGlobalPrompt = () => {
   const { session } = useAuth();
+  const { isAdmin } = useUserRole();
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistoryItem[]>([]);
@@ -51,16 +53,23 @@ export const useGlobalPrompt = () => {
     }
   }, [session?.access_token]);
 
-  // 배포 이력 로드
+  // 배포 이력 로드 (관리자만)
   const loadDeploymentHistory = useCallback(async () => {
+    // 관리자가 아닌 경우 배포 이력을 로드하지 않음
+    if (!isAdmin) {
+      setDeploymentHistory([]);
+      return;
+    }
+
     try {
       const data = await fetchDeploymentHistory(session?.access_token);
       setDeploymentHistory(data.deploymentHistory || []);
     } catch (err) {
       console.error('Failed to load deployment history:', err);
       // 배포 이력 로드 실패는 전체 기능을 막지 않음
+      setDeploymentHistory([]);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, isAdmin]);
 
   // 메인 프롬프트 변경
   const updateMainPrompt = useCallback((content: string) => {
@@ -86,9 +95,15 @@ export const useGlobalPrompt = () => {
     setHasChanges(true);
   }, []);
 
-  // 전역 프롬프트 배포 (저장 + 배포 이력 기록을 한 번에)
+  // 전역 프롬프트 배포 (저장 + 배포 이력 기록을 한 번에) - 관리자만
   const deployGlobalPrompt = useCallback(async (deploymentNotes?: string) => {
     if (!hasChanges) return;
+    
+    // 관리자가 아닌 경우 배포 불가
+    if (!isAdmin) {
+      setError('배포 권한이 없습니다. 관리자만 배포할 수 있습니다.');
+      return;
+    }
     
     setDeploying(true);
     setError(null);
@@ -110,7 +125,7 @@ export const useGlobalPrompt = () => {
     } finally {
       setDeploying(false);
     }
-  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory]);
+  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory, isAdmin]);
 
   // 변경사항 초기화
   const resetChanges = useCallback(() => {
@@ -131,6 +146,7 @@ export const useGlobalPrompt = () => {
     deploying,
     error,
     hasChanges,
+    isAdmin, // 관리자 상태 추가
     
     // 액션
     loadGlobalData,
