@@ -26,9 +26,8 @@ interface DeploymentHistoryItem {
 }
 
 export const useGlobalPrompt = () => {
-  const { session } = useAuth();
-  const { role } = useUserRole(); // role을 가져와서 admin 여부 확인
-  const isAdmin = role === 'admin'; // role이 'admin'인지 확인
+  const { user, session } = useAuth();
+  const { role } = useUserRole(user);
   
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
@@ -55,10 +54,10 @@ export const useGlobalPrompt = () => {
     }
   }, [session?.access_token]);
 
-  // 배포 이력 로드 (관리자만)
+  // 배포 이력 로드
   const loadDeploymentHistory = useCallback(async () => {
     // 관리자가 아닌 경우 배포 이력을 로드하지 않음
-    if (!isAdmin) {
+    if (role !== 'admin') {
       setDeploymentHistory([]);
       return;
     }
@@ -71,7 +70,7 @@ export const useGlobalPrompt = () => {
       // 배포 이력 로드 실패는 전체 기능을 막지 않음
       setDeploymentHistory([]);
     }
-  }, [session?.access_token, isAdmin]);
+  }, [session?.access_token, role]);
 
   // 메인 프롬프트 변경
   const updateMainPrompt = useCallback((content: string) => {
@@ -97,13 +96,25 @@ export const useGlobalPrompt = () => {
     setHasChanges(true);
   }, []);
 
-  // 전역 프롬프트 배포 (저장 + 배포 이력 기록을 한 번에) - 관리자만
+  // 전역 프롬프트 배포 (저장 + 배포 이력 기록을 한 번에)
   const deployGlobalPrompt = useCallback(async (deploymentNotes?: string) => {
-    if (!hasChanges) return;
+    console.log('🚀 배포 시도:', {
+      hasChanges,
+      role,
+      isAdmin: role === 'admin',
+      user: user?.email
+    });
+
+    if (!hasChanges) {
+      console.log('❌ 변경사항이 없어서 배포 중단');
+      return;
+    }
     
     // 관리자가 아닌 경우 배포 불가
-    if (!isAdmin) {
-      setError('배포 권한이 없습니다. 관리자만 배포할 수 있습니다.');
+    if (role !== 'admin') {
+      const errorMsg = `배포 권한이 없습니다. 관리자만 배포할 수 있습니다. (현재 역할: ${role || 'undefined'})`;
+      console.error('❌ 권한 오류:', errorMsg);
+      setError(errorMsg);
       return;
     }
     
@@ -111,23 +122,29 @@ export const useGlobalPrompt = () => {
     setError(null);
     
     try {
+      console.log('📤 전역 프롬프트 저장 중...');
       // 1. 전역 프롬프트 저장
       await updateGlobalPromptAndKnowledgeBase(mainPrompt, knowledgeBase, session?.access_token);
       
+      console.log('📸 배포 이력 기록 중...');
       // 2. 배포 이력 기록
       await saveDeploymentSnapshot(deploymentNotes, session?.access_token);
       
       setHasChanges(false);
       
+      console.log('🔄 배포 이력 새로고침 중...');
       // 3. 배포 이력 새로고침
       await loadDeploymentHistory();
+      
+      console.log('✅ 배포 완료');
     } catch (err) {
+      console.error('❌ 배포 실패:', err);
       setError(err instanceof Error ? err.message : '배포 중 오류가 발생했습니다.');
       throw err;
     } finally {
       setDeploying(false);
     }
-  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory, isAdmin]);
+  }, [mainPrompt, knowledgeBase, hasChanges, session?.access_token, loadDeploymentHistory, role, user?.email]);
 
   // 변경사항 초기화
   const resetChanges = useCallback(() => {
@@ -148,7 +165,7 @@ export const useGlobalPrompt = () => {
     deploying,
     error,
     hasChanges,
-    isAdmin, // 관리자 상태 추가
+    isAdmin: role === 'admin', // 직접 계산
     
     // 액션
     loadGlobalData,
