@@ -167,21 +167,36 @@ export const useChat = (user: User | null) => {
     }
 
     let sessionId = state.currentSessionId;
-    let sessionTitle = 'Playground Session'; // 기본 제목
+    let sessionTitle: string;
+    let isNewSession = false;
 
     // If no active session, create a new one
     if (!sessionId) {
       sessionId = crypto.randomUUID();
+      sessionTitle = 'New Chat'; // 새 세션의 기본 제목
+      isNewSession = true;
+      
+      // 새 세션을 즉시 로컬 상태에 추가
+      const newSession: ChatSession = {
+        id: sessionId,
+        userId: user.id,
+        title: sessionTitle,
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        playgroundMainPromptContent: mainPrompt.trim() || undefined,
+        playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
+      };
+
       setState(prev => ({
         ...prev,
         currentSessionId: sessionId,
+        sessions: [newSession, ...prev.sessions],
       }));
     } else {
       // 기존 세션이 있는 경우, 해당 세션의 제목을 유지
       const existingSession = state.sessions.find(session => session.id === sessionId);
-      if (existingSession) {
-        sessionTitle = existingSession.title;
-      }
+      sessionTitle = existingSession ? existingSession.title : 'New Chat';
     }
 
     try {
@@ -189,7 +204,8 @@ export const useChat = (user: User | null) => {
         sessionId: sessionId,
         mainPromptLength: mainPrompt.length,
         knowledgeBaseItems: knowledgeBase.length,
-        sessionTitle: sessionTitle
+        sessionTitle: sessionTitle,
+        isNewSession
       });
 
       // Use upsert to create or update session in database
@@ -198,7 +214,7 @@ export const useChat = (user: User | null) => {
         .upsert({
           id: sessionId,
           user_id: user.id,
-          title: sessionTitle, // 기존 제목 유지 또는 기본 제목 사용
+          title: sessionTitle, // 기존 제목 유지 또는 새 세션 기본 제목 사용
           playground_main_prompt_content: mainPrompt.trim() || null,
           playground_knowledge_base_snapshot: knowledgeBase.length > 0 ? knowledgeBase : null,
           updated_at: new Date().toISOString()
@@ -206,48 +222,36 @@ export const useChat = (user: User | null) => {
 
       if (error) throw error;
 
-      // Update local state
-      setState(prev => {
-        const existingSession = prev.sessions.find(session => session.id === sessionId);
-        
-        if (existingSession) {
-          // Update existing session
-          return {
-            ...prev,
-            sessions: prev.sessions.map(session =>
-              session.id === sessionId
-                ? {
-                    ...session,
-                    playgroundMainPromptContent: mainPrompt.trim() || undefined,
-                    playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
-                    updatedAt: new Date(),
-                  }
-                : session
-            ),
-          };
-        } else {
-          // Add new session
-          const newSession: ChatSession = {
-            id: sessionId!,
-            userId: user.id,
-            title: sessionTitle,
-            messages: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            playgroundMainPromptContent: mainPrompt.trim() || undefined,
-            playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
-          };
-
-          return {
-            ...prev,
-            sessions: [newSession, ...prev.sessions],
-          };
-        }
-      });
+      // Update local state - 새 세션이 아닌 경우에만 업데이트
+      if (!isNewSession) {
+        setState(prev => ({
+          ...prev,
+          sessions: prev.sessions.map(session =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  playgroundMainPromptContent: mainPrompt.trim() || undefined,
+                  playgroundKnowledgeBaseSnapshot: knowledgeBase.length > 0 ? knowledgeBase : undefined,
+                  updatedAt: new Date(),
+                }
+              : session
+          ),
+        }));
+      }
 
       console.log('✅ 플레이그라운드 변경사항 적용 완료');
     } catch (error) {
       console.error('❌ 플레이그라운드 변경사항 적용 실패:', error);
+      
+      // 새 세션 생성 중 오류가 발생한 경우, 로컬 상태에서 제거
+      if (isNewSession) {
+        setState(prev => ({
+          ...prev,
+          currentSessionId: null,
+          sessions: prev.sessions.filter(session => session.id !== sessionId),
+        }));
+      }
+      
       throw error;
     }
   }, [user, state.currentSessionId, state.sessions]);
