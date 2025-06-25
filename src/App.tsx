@@ -40,6 +40,7 @@ function App() {
     renameSession,
     clearError,
     stopGenerating,
+    applyPlaygroundChanges,
   } = useChat(user);
 
   // Show loading spinner while checking auth state or user role
@@ -320,6 +321,8 @@ function App() {
         <PlaygroundPanel 
           isOpen={playgroundOpen}
           onClose={() => setPlaygroundOpen(false)}
+          currentSessionId={currentSession?.id || null}
+          applyPlaygroundChanges={applyPlaygroundChanges}
         />
       </div>
 

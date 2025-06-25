@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Trash2, FileText, Zap } from 'lucide-react';
 import { supabase } from '../utils/supabase';
-import { useChat } from '../hooks/useChat';
 
 interface PlaygroundPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  currentSessionId: string | null;
+  applyPlaygroundChanges: ((mainPrompt: string, knowledgeBase: KnowledgeBaseItem[]) => Promise<void>) | null;
 }
 
 interface KnowledgeBaseItem {
@@ -15,15 +16,18 @@ interface KnowledgeBaseItem {
   order_index: number;
 }
 
-export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClose }) => {
+export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ 
+  isOpen, 
+  onClose, 
+  currentSessionId, 
+  applyPlaygroundChanges 
+}) => {
   const [mainPrompt, setMainPrompt] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [applying, setApplying] = useState(false);
-
-  const { applyPlaygroundChanges } = useChat(null);
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -125,8 +129,14 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
   };
 
   const handleApplyChanges = async () => {
+    // Check if there's an active session
+    if (!currentSessionId) {
+      setError('활성 세션이 없습니다. 먼저 채팅을 시작하거나 기존 세션을 선택해주세요.');
+      return;
+    }
+
     if (!applyPlaygroundChanges) {
-      setError('플레이그라운드 변경사항을 적용할 수 없습니다. 활성 세션이 필요합니다.');
+      setError('플레이그라운드 변경사항을 적용할 수 없습니다.');
       return;
     }
 
@@ -280,7 +290,7 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
               </button>
               <button
                 onClick={handleApplyChanges}
-                disabled={applying}
+                disabled={applying || !currentSessionId}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {applying ? (
@@ -297,7 +307,10 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2 text-center">
-              * 현재 세션에만 적용되며, 원본 데이터는 변경되지 않습니다
+              {!currentSessionId 
+                ? '* 활성 세션이 필요합니다. 채팅을 시작하거나 기존 세션을 선택해주세요.'
+                : '* 현재 세션에만 적용되며, 원본 데이터는 변경되지 않습니다'
+              }
             </p>
           </div>
         )}
