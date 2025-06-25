@@ -33,7 +33,9 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
     setError(null);
     
     try {
-      // 메인 프롬프트 가져오기 - single() 대신 배열로 가져와서 안전하게 처리
+      console.log('🔄 플레이그라운드 데이터 로딩 시작...');
+      
+      // 메인 프롬프트 가져오기
       const { data: mainPromptData, error: mainPromptError } = await supabase
         .from('prompts_and_knowledge_base')
         .select('content')
@@ -41,9 +43,11 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
         .eq('name', 'main_prompt');
 
       if (mainPromptError) {
-        console.error('메인 프롬프트 로드 실패:', mainPromptError);
-        throw new Error('메인 프롬프트를 불러올 수 없습니다.');
+        console.error('❌ 메인 프롬프트 로드 실패:', mainPromptError);
+        throw new Error(`메인 프롬프트 로드 실패: ${mainPromptError.message}`);
       }
+
+      console.log('📝 메인 프롬프트 데이터:', mainPromptData);
 
       // 메인 프롬프트가 없으면 빈 문자열로 초기화
       const mainPromptContent = mainPromptData && mainPromptData.length > 0 
@@ -58,14 +62,19 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
         .order('order_index', { ascending: true });
 
       if (knowledgeError) {
-        console.error('지식 기반 로드 실패:', knowledgeError);
-        throw new Error('지식 기반을 불러올 수 없습니다.');
+        console.error('❌ 지식 기반 로드 실패:', knowledgeError);
+        throw new Error(`지식 기반 로드 실패: ${knowledgeError.message}`);
       }
+
+      console.log('📚 지식 기반 데이터:', knowledgeData);
 
       setMainPrompt(mainPromptContent);
       setKnowledgeBase(knowledgeData || []);
       setHasChanges(false);
+      
+      console.log('✅ 플레이그라운드 데이터 로딩 완료');
     } catch (err) {
+      console.error('❌ 데이터 로딩 오류:', err);
       setError(err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
@@ -133,8 +142,8 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
         </button>
       </div>
 
-      {/* Content */}
-      <div className="flex flex-col h-full">
+      {/* Content - 고정 높이와 스크롤 영역 설정 */}
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 73px)' }}>
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-8">
@@ -168,13 +177,18 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
                   className="w-full h-40 p-3 border border-slate-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                   placeholder="메인 프롬프트를 입력하세요..."
                 />
+                {mainPrompt && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {mainPrompt.length} 글자
+                  </p>
+                )}
               </div>
 
               {/* Knowledge Base Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium text-slate-700">
-                    지식 기반 파일
+                    지식 기반 파일 ({knowledgeBase.length}개)
                   </label>
                   <label className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 cursor-pointer transition-colors">
                     <Upload size={14} />
@@ -193,6 +207,7 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
                     <div className="text-center py-6 text-slate-500">
                       <FileText size={32} className="mx-auto mb-2 opacity-50" />
                       <p className="text-sm">업로드된 지식 기반 파일이 없습니다</p>
+                      <p className="text-xs mt-1">TXT 또는 MD 파일을 업로드하세요</p>
                     </div>
                   ) : (
                     knowledgeBase.map((item) => (
@@ -202,9 +217,14 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <FileText size={16} className="text-slate-500 flex-shrink-0" />
-                          <span className="text-sm font-medium text-slate-700 truncate">
-                            {item.name}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-medium text-slate-700 truncate block">
+                              {item.name}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {item.content.length} 글자
+                            </span>
+                          </div>
                         </div>
                         <button
                           onClick={() => removeKnowledgeItem(item.id)}
@@ -222,9 +242,9 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({ isOpen, onClos
           )}
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions - 하단에 고정 */}
         {hasChanges && (
-          <div className="border-t border-slate-200 p-4">
+          <div className="border-t border-slate-200 p-4 bg-white">
             <div className="flex gap-2">
               <button
                 onClick={resetChanges}
