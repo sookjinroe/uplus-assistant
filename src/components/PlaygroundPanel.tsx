@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Trash2, FileText, Check } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { ChatSession } from '../types/chat';
@@ -38,13 +38,41 @@ export const PlaygroundPanel: React.FC<PlaygroundPanelProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSessionSpecific, setIsSessionSpecific] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  
+  // 세션 ID와 플레이그라운드 데이터를 추적하기 위한 ref
+  const lastLoadedSessionId = useRef<string | null>(null);
+  const lastPlaygroundData = useRef<{
+    mainPrompt?: string;
+    knowledgeBase?: any;
+  } | null>(null);
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 - 세션 변경이나 플레이그라운드 데이터 변경시에만 실행
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    const currentSessionId = currentSession?.id || null;
+    const currentPlaygroundData = {
+      mainPrompt: currentSession?.playgroundMainPromptContent,
+      knowledgeBase: currentSession?.playgroundKnowledgeBaseSnapshot
+    };
+
+    // 세션이 변경되었거나 플레이그라운드 데이터가 변경된 경우에만 로드
+    const sessionChanged = lastLoadedSessionId.current !== currentSessionId;
+    const playgroundDataChanged = JSON.stringify(lastPlaygroundData.current) !== JSON.stringify(currentPlaygroundData);
+
+    if (sessionChanged || playgroundDataChanged) {
+      console.log('🔄 플레이그라운드 데이터 로드 트리거:', {
+        sessionChanged,
+        playgroundDataChanged,
+        currentSessionId,
+        hasPlaygroundData: !!(currentSession?.playgroundMainPromptContent || currentSession?.playgroundKnowledgeBaseSnapshot)
+      });
+
+      lastLoadedSessionId.current = currentSessionId;
+      lastPlaygroundData.current = currentPlaygroundData;
       loadData();
     }
-  }, [isOpen, currentSession]);
+  }, [isOpen, currentSession?.id, currentSession?.playgroundMainPromptContent, currentSession?.playgroundKnowledgeBaseSnapshot]);
 
   const loadData = async () => {
     setLoading(true);
