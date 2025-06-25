@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatHistory } from './components/ChatHistory';
 import { ChatArea } from './components/ChatArea';
 import { Auth } from './components/Auth';
@@ -42,6 +42,14 @@ function App() {
     stopGenerating,
     applyPlaygroundChangesToSession,
   } = useChat(user);
+
+  // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
+  useEffect(() => {
+    if (role !== 'admin' && playgroundOpen) {
+      console.log('🔒 일반 사용자로 전환됨 - 플레이그라운드 패널 닫기');
+      setPlaygroundOpen(false);
+    }
+  }, [role, playgroundOpen]);
 
   // Show loading spinner while checking auth state or user role
   if (authLoading || roleLoading) {
@@ -99,6 +107,15 @@ function App() {
       await signOut();
     } catch (error) {
       console.error('Sign out error:', error);
+    }
+  };
+
+  const handlePlaygroundToggle = () => {
+    // 관리자만 플레이그라운드 패널을 열 수 있음
+    if (role === 'admin') {
+      setPlaygroundOpen(!playgroundOpen);
+    } else {
+      console.warn('⚠️ 일반 사용자는 플레이그라운드에 접근할 수 없습니다.');
     }
   };
 
@@ -263,7 +280,7 @@ function App() {
               {/* PLAYGROUND 버튼 - 관리자만 표시 */}
               {role === 'admin' && (
                 <button
-                  onClick={() => setPlaygroundOpen(!playgroundOpen)}
+                  onClick={handlePlaygroundToggle}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors ${
                     playgroundOpen
                       ? 'bg-primary text-white'
@@ -290,7 +307,7 @@ function App() {
               {/* PLAYGROUND 버튼 - 관리자만 표시 */}
               {role === 'admin' && (
                 <button
-                  onClick={() => setPlaygroundOpen(!playgroundOpen)}
+                  onClick={handlePlaygroundToggle}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors shadow-md ${
                     playgroundOpen
                       ? 'bg-primary text-white'
@@ -317,13 +334,15 @@ function App() {
           />
         </div>
 
-        {/* Playground Panel */}
-        <PlaygroundPanel 
-          isOpen={playgroundOpen}
-          onClose={() => setPlaygroundOpen(false)}
-          currentSession={currentSession}
-          onApply={applyPlaygroundChangesToSession}
-        />
+        {/* Playground Panel - 관리자만 렌더링 */}
+        {role === 'admin' && (
+          <PlaygroundPanel 
+            isOpen={playgroundOpen}
+            onClose={() => setPlaygroundOpen(false)}
+            currentSession={currentSession}
+            onApply={applyPlaygroundChangesToSession}
+          />
+        )}
       </div>
 
       {/* Admin Settings Modal */}
