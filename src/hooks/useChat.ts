@@ -64,12 +64,16 @@ export const useChat = (user: User | null) => {
             .select('*')
             .eq('session_id', session.id)
             .order('created_at', { ascending: false })
-            .limit(INITIAL_MESSAGES_LOAD);
+            .limit(INITIAL_MESSAGES_LOAD + 1); // +1로 더 많은 메시지가 있는지 확인
 
           if (messagesError) throw messagesError;
 
+          // 더 많은 메시지가 있는지 확인
+          const hasMoreMessages = (messagesData || []).length > INITIAL_MESSAGES_LOAD;
+          
           // 메시지를 시간순으로 정렬 (최신이 마지막)
           const messages: Message[] = (messagesData || [])
+            .slice(0, INITIAL_MESSAGES_LOAD) // 실제로는 INITIAL_MESSAGES_LOAD 개수만 사용
             .reverse()
             .map((msg: DbChatMessage) => ({
             id: msg.id,
@@ -83,6 +87,7 @@ export const useChat = (user: User | null) => {
             userId: session.user_id,
             title: session.title,
             messages,
+            hasMoreMessages,
             createdAt: new Date(session.created_at),
             updatedAt: new Date(session.updated_at),
             playgroundMainPromptContent: session.playground_main_prompt_content || undefined,
@@ -135,12 +140,16 @@ export const useChat = (user: User | null) => {
         .eq('session_id', sessionId)
         .lt('created_at', beforeMessage.created_at)
         .order('created_at', { ascending: false })
-        .limit(MESSAGES_PER_PAGE);
+        .limit(MESSAGES_PER_PAGE + 1); // +1로 더 많은 메시지가 있는지 확인
 
       if (error) throw error;
 
+      // 더 많은 메시지가 있는지 확인
+      const moreAvailable = (messagesData || []).length > MESSAGES_PER_PAGE;
+      
       // 메시지를 시간순으로 정렬 (최신이 마지막)
       const messages: Message[] = (messagesData || [])
+        .slice(0, MESSAGES_PER_PAGE) // 실제로는 MESSAGES_PER_PAGE 개수만 사용
         .reverse()
         .map((msg: DbChatMessage) => ({
           id: msg.id,
@@ -149,6 +158,15 @@ export const useChat = (user: User | null) => {
           timestamp: new Date(msg.created_at),
         }));
 
+      // 현재 세션의 hasMoreMessages 상태 업데이트
+      setState(prev => ({
+        ...prev,
+        sessions: prev.sessions.map(session =>
+          session.id === sessionId
+            ? { ...session, hasMoreMessages: moreAvailable }
+            : session
+        ),
+      }));
       return messages;
     } catch (error) {
       console.error('Error loading more messages:', error);
@@ -465,6 +483,8 @@ export const useChat = (user: User | null) => {
           userId: user.id,
           title: sessionTitle,
           messages: [userMessage, assistantMessage],
+          hasMoreMessages: false, // 새 세션은 더 이상 메시지가 없음
+          hasMoreMessages: false, // 새 세션은 더 이상 메시지가 없음
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -478,6 +498,8 @@ export const useChat = (user: User | null) => {
                       ...session,
                       messages: [...session.messages, userMessage, assistantMessage],
                       title: session.messages.length === 0 ? sessionTitle : session.title,
+                      hasMoreMessages: session.hasMoreMessages || false, // 기존 상태 유지
+                      hasMoreMessages: session.hasMoreMessages || false, // 기존 상태 유지
                       updatedAt: new Date(),
                     }
                   : session

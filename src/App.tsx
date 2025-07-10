@@ -68,9 +68,6 @@ function App() {
     }
   };
 
-  // 현재 세션에 더 많은 메시지가 있는지 확인
-  const hasMoreMessages = currentSession ? currentSession.messages.length >= 20 : false;
-
   // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
   useEffect(() => {
     if (role !== 'admin' && playgroundOpen) {
@@ -360,7 +357,7 @@ function App() {
             onClearError={clearError}
             hasHeader={isCurrentSessionInList}
             onLoadMoreMessages={handleLoadMoreMessages}
-            hasMoreMessages={hasMoreMessages}
+            hasMoreMessages={currentSession?.hasMoreMessages || false}
           />
         </div>
 
