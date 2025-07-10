@@ -50,22 +50,7 @@ function App() {
     if (!currentSession || currentSession.messages.length === 0) return;
     
     const firstMessage = currentSession.messages[0];
-    const moreMessages = await loadMoreMessages(currentSession.id, firstMessage.id);
-    
-    if (moreMessages.length > 0) {
-      // 새로운 메시지들을 현재 세션에 추가
-      setState(prev => ({
-        ...prev,
-        sessions: prev.sessions.map(session =>
-          session.id === currentSession.id
-            ? {
-                ...session,
-                messages: [...moreMessages, ...session.messages]
-              }
-            : session
-        ),
-      }));
-    }
+    await loadMoreMessages(currentSession.id, firstMessage.id);
   };
 
   // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
