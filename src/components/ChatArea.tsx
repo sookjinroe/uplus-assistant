@@ -40,7 +40,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const isScrollingProgrammatically = useRef(false);
 
   // 이전 메시지 로드 함수
-  const handleLoadMoreMessagesClick = async () => {
+  const handleLoadMoreMessages = async () => {
     if (!onLoadMoreMessages || loadingMoreMessages || !hasMoreMessages) return;
     
     setLoadingMoreMessages(true);
@@ -85,7 +85,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
     // 상단 근처에서 더 많은 메시지 로드
     if (isAtTop && hasMoreMessages && !loadingMoreMessages) {
-      handleLoadMoreMessagesClick();
+      handleLoadMoreMessages();
     }
 
     if (scrolledUp && !isAtBottom) {
@@ -212,7 +212,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               {hasMoreMessages && (
                 <div className="flex justify-center mb-4">
                   <button
-                    onClick={handleLoadMoreMessagesClick}
+                    onClick={handleLoadMoreMessages}
                     disabled={loadingMoreMessages}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-secondary hover:text-text bg-background border border-border rounded-lg hover:bg-light transition-colors disabled:opacity-50"
                   >
