@@ -13,7 +13,7 @@ interface ChatAreaProps {
   onStopGenerating?: () => void;
   onClearError?: () => void;
   hasHeader?: boolean;
-  onLoadMoreMessages?: () => Promise<void>;
+  onLoadMoreMessages?: () => Promise<any>;
   hasMoreMessages?: boolean;
 }
 

@@ -121,7 +121,16 @@ export const useChat = (user: User | null) => {
   }, [user]);
 
   // 특정 세션의 추가 메시지 로드 (페이지네이션)
-  const loadMoreMessages = useCallback(async (sessionId: string, beforeMessageId: string) => {
+  const loadMoreMessages = useCallback(async () => {
+    const currentSessionId = state.currentSessionId;
+    const currentSessionData = state.sessions.find(s => s.id === currentSessionId);
+    
+    if (!user || !currentSessionId || !currentSessionData || currentSessionData.messages.length === 0) {
+      return [];
+    }
+
+    const firstMessage = currentSessionData.messages[0];
+    
     if (!user) return [];
 
     try {
@@ -129,7 +138,7 @@ export const useChat = (user: User | null) => {
       const { data: beforeMessage } = await supabase
         .from('chat_messages')
         .select('created_at')
-        .eq('id', beforeMessageId)
+        .eq('id', firstMessage.id)
         .single();
 
       if (!beforeMessage) return [];
@@ -137,7 +146,7 @@ export const useChat = (user: User | null) => {
       const { data: messagesData, error } = await supabase
         .from('chat_messages')
         .select('*')
-        .eq('session_id', sessionId)
+        .eq('session_id', currentSessionId)
         .lt('created_at', beforeMessage.created_at)
         .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1); // +1로 더 많은 메시지가 있는지 확인
@@ -158,21 +167,26 @@ export const useChat = (user: User | null) => {
           timestamp: new Date(msg.created_at),
         }));
 
-      // 현재 세션의 hasMoreMessages 상태 업데이트
+      // 현재 세션에 새로운 메시지들을 추가하고 hasMoreMessages 상태 업데이트
       setState(prev => ({
         ...prev,
         sessions: prev.sessions.map(session =>
-          session.id === sessionId
-            ? { ...session, hasMoreMessages: moreAvailable }
+          session.id === currentSessionId
+            ? { 
+                ...session, 
+                messages: [...messages, ...session.messages],
+                hasMoreMessages: moreAvailable 
+              }
             : session
         ),
       }));
+      
       return messages;
     } catch (error) {
       console.error('Error loading more messages:', error);
       return [];
     }
-  }, [user]);
+  }, [user, state.currentSessionId, state.sessions]);
 
   // 특정 세션의 전체 메시지 로드 (필요시)
   const loadFullSessionMessages = useCallback(async (sessionId: string) => {
@@ -923,6 +937,5 @@ export const useChat = (user: User | null) => {
     stopGenerating,
     applyPlaygroundChangesToSession,
     loadMoreMessages,
-    loadFullSessionMessages,
   };
 };

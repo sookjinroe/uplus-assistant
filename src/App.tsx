@@ -42,31 +42,7 @@ function App() {
     stopGenerating,
     applyPlaygroundChangesToSession,
     loadMoreMessages,
-    loadFullSessionMessages,
   } = useChat(user);
-
-  // 현재 세션의 더 많은 메시지 로드
-  const handleLoadMoreMessages = async () => {
-    if (!currentSession || currentSession.messages.length === 0) return;
-    
-    const firstMessage = currentSession.messages[0];
-    const moreMessages = await loadMoreMessages(currentSession.id, firstMessage.id);
-    
-    if (moreMessages.length > 0) {
-      // 새로운 메시지들을 현재 세션에 추가
-      setState(prev => ({
-        ...prev,
-        sessions: prev.sessions.map(session =>
-          session.id === currentSession.id
-            ? {
-                ...session,
-                messages: [...moreMessages, ...session.messages]
-              }
-            : session
-        ),
-      }));
-    }
-  };
 
   // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
   useEffect(() => {
@@ -356,7 +332,7 @@ function App() {
             onStopGenerating={stopGenerating}
             onClearError={clearError}
             hasHeader={isCurrentSessionInList}
-            onLoadMoreMessages={handleLoadMoreMessages}
+            onLoadMoreMessages={loadMoreMessages}
             hasMoreMessages={currentSession?.hasMoreMessages || false}
           />
         </div>
