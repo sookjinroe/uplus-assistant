@@ -158,16 +158,12 @@ export const useChat = (user: User | null) => {
           timestamp: new Date(msg.created_at),
         }));
 
-      // 현재 세션의 hasMoreMessages 상태 업데이트 및 메시지 추가
+      // 현재 세션의 hasMoreMessages 상태 업데이트
       setState(prev => ({
         ...prev,
         sessions: prev.sessions.map(session =>
           session.id === sessionId
-            ? { 
-                ...session, 
-                hasMoreMessages: moreAvailable,
-                messages: [...messages, ...session.messages]
-              }
+            ? { ...session, hasMoreMessages: moreAvailable }
             : session
         ),
       }));
@@ -176,7 +172,7 @@ export const useChat = (user: User | null) => {
       console.error('Error loading more messages:', error);
       return [];
     }
-  }, [user, setState]);
+  }, [user]);
 
   // 특정 세션의 전체 메시지 로드 (필요시)
   const loadFullSessionMessages = useCallback(async (sessionId: string) => {
