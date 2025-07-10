@@ -41,6 +41,7 @@ function App() {
     clearError,
     stopGenerating,
     applyPlaygroundChangesToSession,
+    loadMoreMessages,
   } = useChat(user);
 
   // 사용자 역할이 변경될 때 플레이그라운드 패널 자동 닫기
@@ -331,6 +332,8 @@ function App() {
             onStopGenerating={stopGenerating}
             onClearError={clearError}
             hasHeader={isCurrentSessionInList}
+            onLoadMoreMessages={loadMoreMessages}
+            hasMoreMessages={currentSession?.hasMoreMessages || false}
           />
         </div>
 

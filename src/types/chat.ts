@@ -12,6 +12,7 @@ export interface ChatSession {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  hasMoreMessages?: boolean;
   playgroundMainPromptContent?: string;
   playgroundKnowledgeBaseSnapshot?: Array<{
     id: string;
