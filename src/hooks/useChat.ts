@@ -4,6 +4,10 @@ import { Message, ChatSession, ChatState, DbChatSession, DbChatMessage } from '.
 import { generateStreamingResponse } from '../utils/api';
 import { supabase } from '../utils/supabase';
 
+// 메시지 페이지네이션 설정
+const MESSAGES_PER_PAGE = 50;
+const INITIAL_MESSAGES_LOAD = 20;
+
 // 타이틀 생성 함수 (저장용 - 말줄임표 없음)
 const createTitleFromMessage = (content: string): string => {
   // 50자로 제한 (저장시에는 말줄임표 없음)
@@ -52,18 +56,22 @@ export const useChat = (user: User | null) => {
         return;
       }
 
-      // 각 세션의 메시지 가져오기
+      // 각 세션의 최신 메시지만 가져오기 (성능 최적화)
       const sessionsWithMessages: ChatSession[] = await Promise.all(
         sessionsData.map(async (session: DbChatSession) => {
           const { data: messagesData, error: messagesError } = await supabase
             .from('chat_messages')
             .select('*')
             .eq('session_id', session.id)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: false })
+            .limit(INITIAL_MESSAGES_LOAD);
 
           if (messagesError) throw messagesError;
 
-          const messages: Message[] = (messagesData || []).map((msg: DbChatMessage) => ({
+          // 메시지를 시간순으로 정렬 (최신이 마지막)
+          const messages: Message[] = (messagesData || [])
+            .reverse()
+            .map((msg: DbChatMessage) => ({
             id: msg.id,
             content: msg.content,
             role: msg.role,
@@ -104,6 +112,81 @@ export const useChat = (user: User | null) => {
         ...prev, 
         error: '채팅 기록을 불러오는 중 오류가 발생했습니다.' 
       }));
+    }
+  }, [user]);
+
+  // 특정 세션의 추가 메시지 로드 (페이지네이션)
+  const loadMoreMessages = useCallback(async (sessionId: string, beforeMessageId: string) => {
+    if (!user) return [];
+
+    try {
+      // 특정 메시지 이전의 메시지들을 가져오기
+      const { data: beforeMessage } = await supabase
+        .from('chat_messages')
+        .select('created_at')
+        .eq('id', beforeMessageId)
+        .single();
+
+      if (!beforeMessage) return [];
+
+      const { data: messagesData, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .lt('created_at', beforeMessage.created_at)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE);
+
+      if (error) throw error;
+
+      // 메시지를 시간순으로 정렬 (최신이 마지막)
+      const messages: Message[] = (messagesData || [])
+        .reverse()
+        .map((msg: DbChatMessage) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role,
+          timestamp: new Date(msg.created_at),
+        }));
+
+      return messages;
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+      return [];
+    }
+  }, [user]);
+
+  // 특정 세션의 전체 메시지 로드 (필요시)
+  const loadFullSessionMessages = useCallback(async (sessionId: string) => {
+    if (!user) return;
+
+    try {
+      const { data: messagesData, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const messages: Message[] = (messagesData || []).map((msg: DbChatMessage) => ({
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        timestamp: new Date(msg.created_at),
+      }));
+
+      // 해당 세션의 메시지를 전체로 업데이트
+      setState(prev => ({
+        ...prev,
+        sessions: prev.sessions.map(session =>
+          session.id === sessionId
+            ? { ...session, messages }
+            : session
+        ),
+      }));
+    } catch (error) {
+      console.error('Error loading full session messages:', error);
     }
   }, [user]);
 
@@ -817,5 +900,7 @@ export const useChat = (user: User | null) => {
     clearError,
     stopGenerating,
     applyPlaygroundChangesToSession,
+    loadMoreMessages,
+    loadFullSessionMessages,
   };
 };

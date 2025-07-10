@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChatBubble } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 import { Message } from '../types/chat';
-import { MessageSquare, AlertCircle, X } from 'lucide-react';
+import { MessageSquare, AlertCircle, X, ChevronUp } from 'lucide-react';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -13,6 +13,8 @@ interface ChatAreaProps {
   onStopGenerating?: () => void;
   onClearError?: () => void;
   hasHeader?: boolean;
+  onLoadMoreMessages?: () => Promise<void>;
+  hasMoreMessages?: boolean;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -24,15 +26,44 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onStopGenerating,
   onClearError,
   hasHeader = false,
+  onLoadMoreMessages,
+  hasMoreMessages = false,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
   const lastScrollTop = useRef(0);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isScrollingProgrammatically = useRef(false);
+
+  // 이전 메시지 로드 함수
+  const handleLoadMoreMessages = async () => {
+    if (!onLoadMoreMessages || loadingMoreMessages || !hasMoreMessages) return;
+    
+    setLoadingMoreMessages(true);
+    try {
+      const container = scrollContainerRef.current;
+      const scrollHeightBefore = container?.scrollHeight || 0;
+      
+      await onLoadMoreMessages();
+      
+      // 스크롤 위치 유지 (새로 로드된 메시지로 인한 스크롤 점프 방지)
+      setTimeout(() => {
+        if (container) {
+          const scrollHeightAfter = container.scrollHeight;
+          const scrollDiff = scrollHeightAfter - scrollHeightBefore;
+          container.scrollTop = container.scrollTop + scrollDiff;
+        }
+      }, 50);
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      setLoadingMoreMessages(false);
+    }
+  };
 
   // 스크롤 위치 감지
   const handleScroll = () => {
@@ -46,10 +77,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100; // 100px 여유
+    const isAtTop = scrollTop < 100; // 상단 100px 이내
     
     // 사용자가 위로 스크롤했는지 감지
     const scrolledUp = scrollTop < lastScrollTop.current - 5; // 5px 임계값
     lastScrollTop.current = scrollTop;
+
+    // 상단 근처에서 더 많은 메시지 로드
+    if (isAtTop && hasMoreMessages && !loadingMoreMessages) {
+      handleLoadMoreMessages();
+    }
 
     if (scrolledUp && !isAtBottom) {
       // 사용자가 위로 스크롤했고 하단에 있지 않으면 자동 스크롤 중단
@@ -171,6 +208,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         ) : (
           <div className="min-h-full">
             <div className="max-w-2xl mx-auto py-4">
+              {/* 이전 메시지 로드 버튼 */}
+              {hasMoreMessages && (
+                <div className="flex justify-center mb-4">
+                  <button
+                    onClick={handleLoadMoreMessages}
+                    disabled={loadingMoreMessages}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-secondary hover:text-text bg-background border border-border rounded-lg hover:bg-light transition-colors disabled:opacity-50"
+                  >
+                    {loadingMoreMessages ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-secondary border-t-transparent rounded-full animate-spin"></div>
+                        이전 메시지 로딩 중...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronUp size={16} />
+                        이전 메시지 보기
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+              
               {messages.map((message) => {
                 // 마지막 어시스턴트 메시지이고 로딩 중이면 로딩 상태로 표시
                 const isLastAssistantMessage = message.role === 'assistant' && 
