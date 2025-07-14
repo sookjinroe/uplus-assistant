@@ -698,12 +698,28 @@ export const useChat = (user: User | null) => {
 
       // 현재 세션의 대화 히스토리 구성
       const sessionForHistory = state.sessions.find(s => s.id === sessionId);
-      const conversationHistory = sessionForHistory ? [...sessionForHistory.messages, userMessage] : [userMessage];
+      
+      // API로 전송할 메시지 구성 - 빈 어시스턴트 메시지 제외
+      const existingMessages = sessionForHistory ? sessionForHistory.messages : [];
+      const validMessages = existingMessages.filter(msg => 
+        // 내용이 있는 메시지만 포함 (빈 어시스턴트 메시지 제외)
+        msg.content.trim() !== '' && 
+        // 방금 추가한 임시 어시스턴트 메시지 제외
+        msg.id !== assistantMessage.id
+      );
+      
+      const conversationHistory = [...validMessages, userMessage];
       
       const apiMessages = conversationHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
+
+      console.log('📤 Claude API로 전송할 메시지:', {
+        totalMessages: apiMessages.length,
+        lastMessage: apiMessages[apiMessages.length - 1],
+        hasEmptyContent: apiMessages.some(msg => !msg.content.trim())
+      });
 
       // 세션별 플레이그라운드 설정 가져오기
       const playgroundMainPromptContent = sessionForHistory?.playgroundMainPromptContent;
